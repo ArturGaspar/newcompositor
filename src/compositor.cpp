@@ -100,7 +100,7 @@ QOpenGLTextureBlitter::Origin View::textureOrigin() const
 
 void View::setParentView(View *parent) {
     Q_ASSERT(!m_parentView);
-    Q_ASSERT(!output()->window());
+    Q_ASSERT(!output());
     m_parentView = parent;
 }
 
