@@ -56,6 +56,8 @@
 #include <QWaylandSeat>
 #include <QWaylandSurface>
 #include <QWaylandTouch>
+#include <QWaylandWlShell>
+#include <QWaylandWlShellSurface>
 #include <QWaylandXdgPopup>
 #include <QWaylandXdgShell>
 #include <QWaylandXdgToplevel>
@@ -96,6 +98,12 @@ QOpenGLTextureBlitter::Origin View::textureOrigin() const
     return m_origin;
 }
 
+void View::setParentView(View *parent) {
+    Q_ASSERT(!m_parentView);
+    Q_ASSERT(!output()->window());
+    m_parentView = parent;
+}
+
 QPointF View::parentPosition() const
 {
     if (m_parentView) {
@@ -126,6 +134,10 @@ QSize View::outputRealSize() const
 
 void View::onOutputGeometryChanged()
 {
+    if (m_wlShellSurface) {
+        m_wlShellSurface->sendConfigure(outputRealSize(),
+                                        QWaylandWlShellSurface::NoneEdge);
+    }
     if (m_xdgToplevel) {
         m_xdgToplevel->sendMaximized(outputRealSize());
     }
@@ -153,6 +165,9 @@ QString View::appId() const
     if (m_xdgToplevel) {
         return m_xdgToplevel->appId();
     }
+    if (m_wlShellSurface) {
+        return m_wlShellSurface->className();
+    }
     return QString();
 }
 
@@ -161,11 +176,15 @@ QString View::title() const
     if (m_xdgToplevel) {
         return m_xdgToplevel->title();
     }
+    if (m_wlShellSurface) {
+        return m_wlShellSurface->title();
+    }
     return QString();
 }
 
 
 Compositor::Compositor() :
+    m_wlShell(new QWaylandWlShell(this)),
     m_xdgShell(new QWaylandXdgShell(this)),
     m_xdgDecorationManager(new QWaylandXdgDecorationManagerV1)
 {
@@ -178,8 +197,9 @@ Compositor::~Compositor()
 
 void Compositor::create()
 {
-    new QWaylandOutput(this, nullptr);
-    QWaylandCompositor::create();
+    m_wlShell->initialize();
+    connect(m_wlShell, &QWaylandWlShell::wlShellSurfaceCreated,
+            this, &Compositor::onWlShellSurfaceCreated);
 
     m_xdgShell->initialize();
     connect(m_xdgShell, &QWaylandXdgShell::toplevelCreated,
@@ -194,6 +214,9 @@ void Compositor::create()
             this, &Compositor::onSurfaceCreated);
     connect(this, &QWaylandCompositor::subsurfaceChanged,
             this, &Compositor::onSubsurfaceChanged);
+
+    new QWaylandOutput(this, nullptr);
+    QWaylandCompositor::create();
 }
 
 void Compositor::onSurfaceCreated(QWaylandSurface *surface)
@@ -223,8 +246,7 @@ void Compositor::surfaceHasContentChanged()
     }
     if (surface->primaryView()) {
         if (surface->hasContent() && !surface->isCursorSurface()) {
-            if (surface->role() == QWaylandXdgToplevel::role()
-                    || surface->role() == QWaylandXdgPopup::role()) {
+            if (surfaceIsFocusable(surface)) {
                 defaultSeat()->setKeyboardFocus(surface);
             }
             auto view = qobject_cast<View *>(surface->primaryView());
@@ -244,6 +266,14 @@ void Compositor::onSurfaceRedraw()
 {
     QWaylandSurface *surface = qobject_cast<QWaylandSurface *>(sender());
     triggerRender(surface);
+}
+
+bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
+{
+    return (surface == nullptr ||
+            (surface->role() == QWaylandWlShellSurface::role() ||
+             surface->role() == QWaylandXdgToplevel::role() ||
+             surface->role() == QWaylandXdgPopup::role()));
 }
 
 Window *Compositor::ensureWindowForView(View *view)
@@ -268,6 +298,52 @@ Window *Compositor::ensureWindowForView(View *view)
                 view, &View::onOutputGeometryChanged);
     }
     return window;
+}
+
+void Compositor::onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface)
+{
+    connect(wlShellSurface, &QWaylandWlShellSurface::setTransient,
+            this, &Compositor::onWlShellSurfaceSetTransient);
+    connect(wlShellSurface, &QWaylandWlShellSurface::setPopup,
+            this, &Compositor::onWlShellSurfaceSetPopup);
+
+    auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
+    Q_ASSERT(view);
+    view->m_wlShellSurface = wlShellSurface;
+}
+
+void Compositor::onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
+                                              const QPoint &relativeToParent,
+                                              bool inactive)
+{
+    Q_UNUSED(inactive);
+
+    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
+    auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
+    Q_ASSERT(view);
+
+    auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
+    Q_ASSERT(parentView);
+    view->setParentView(parentView);
+    view->setPosition(parentView->position() + relativeToParent);
+    //    raise(view);
+}
+
+void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
+                                          QWaylandSurface *parentSurface,
+                                          const QPoint &relativeToParent)
+{
+    Q_UNUSED(seat);
+
+    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
+    auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
+    Q_ASSERT(view);
+
+    auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
+    Q_ASSERT(parentView);
+    view->setParentView(parentView);
+    view->setPosition(parentView->position() + relativeToParent);
+    //    raise(view);
 }
 
 void Compositor::onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
@@ -332,10 +408,7 @@ void Compositor::handleMouseEvent(View *target, QMouseEvent *me)
     switch (me->type()) {
     case QEvent::MouseButtonPress:
         seat->sendMousePressEvent(me->button());
-        if (surface != seat->keyboardFocus() &&
-                (surface == nullptr ||
-                 surface->role() == QWaylandXdgToplevel::role() ||
-                 surface->role() == QWaylandXdgPopup::role())) {
+        if (surface != seat->keyboardFocus() && surfaceIsFocusable(surface)) {
             seat->setKeyboardFocus(surface);
         }
         break;

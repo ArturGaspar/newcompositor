@@ -63,6 +63,7 @@ QT_BEGIN_NAMESPACE
 
 class QOpenGLTexture;
 class QWaylandOutput;
+class QWaylandWlShellSurface;
 class QWaylandXdgPopup;
 class QWaylandXdgToplevel;
 
@@ -78,7 +79,7 @@ public:
     QPointF position() const { return m_position; }
     void setPosition(const QPointF &pos) { m_position = pos; }
     QSize size() const;
-    void setParentView(View *parent) { m_parentView = parent; }
+    void setParentView(View *parent);
     View *parentView() const { return m_parentView; }
     QPointF parentPosition() const;
     QPoint offset() const { return m_offset; }
@@ -94,6 +95,7 @@ private:
     QOpenGLTextureBlitter::Origin m_origin;
     QPointF m_position;
     QSize m_size;
+    QWaylandWlShellSurface *m_wlShellSurface = nullptr;
     QWaylandXdgToplevel *m_xdgToplevel = nullptr;
     QWaylandXdgPopup *m_xdgPopup = nullptr;
     View *m_parentView = nullptr;
@@ -109,6 +111,7 @@ class Window;
 
 class QMouseEvent;
 class QWaylandSurface;
+class QWaylandWlShell;
 class QWaylandXdgShell;
 class QWaylandXdgDecorationManagerV1;
 class QWaylandXdgSurface;
@@ -133,6 +136,13 @@ private slots:
     void onSurfaceRedraw();
 
     void onSurfaceCreated(QWaylandSurface *surface);
+    void onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface);
+    void onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
+                                      const QPoint &relativeToParent,
+                                      bool inactive);
+    void onWlShellSurfaceSetPopup(QWaylandSeat *seat,
+                                  QWaylandSurface *parentSurface,
+                                  const QPoint &relativeToParent);
     void onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
                               QWaylandXdgSurface *xdgSurface);
     void onXdgPopupCreated(QWaylandXdgPopup *popup,
@@ -142,7 +152,9 @@ private slots:
     void onSubsurfacePositionChanged(const QPoint &position);
 
 private:
+    bool surfaceIsFocusable(QWaylandSurface *surface);
     Window *ensureWindowForView(View *view);
+    QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
 };
