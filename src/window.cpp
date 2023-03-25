@@ -1,0 +1,259 @@
+/****************************************************************************
+**
+** Copyright (C) 2017 The Qt Company Ltd.
+** Contact: https://www.qt.io/licensing/
+**
+** This file is part of the examples of the Qt Wayland module
+**
+** $QT_BEGIN_LICENSE:BSD$
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and The Qt Company. For licensing terms
+** and conditions see https://www.qt.io/terms-conditions. For further
+** information use the contact form at https://www.qt.io/contact-us.
+**
+** BSD License Usage
+** Alternatively, you may use this file under the terms of the BSD license
+** as follows:
+**
+** "Redistribution and use in source and binary forms, with or without
+** modification, are permitted provided that the following conditions are
+** met:
+**   * Redistributions of source code must retain the above copyright
+**     notice, this list of conditions and the following disclaimer.
+**   * Redistributions in binary form must reproduce the above copyright
+**     notice, this list of conditions and the following disclaimer in
+**     the documentation and/or other materials provided with the
+**     distribution.
+**   * Neither the name of The Qt Company Ltd nor the names of its
+**     contributors may be used to endorse or promote products derived
+**     from this software without specific prior written permission.
+**
+**
+** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
+**
+** $QT_END_LICENSE$
+**
+****************************************************************************/
+
+#include "window.h"
+
+#include <QMouseEvent>
+#include <QOpenGLFunctions>
+#include <QOpenGLTexture>
+#include <QOpenGLWindow>
+#include <QPoint>
+#include <QPointF>
+#include <QRect>
+#include <QRectF>
+#include <QSet>
+#include <QTouchEvent>
+#include <QMatrix4x4>
+#include <QWaylandSeat>
+#include <QWaylandView>
+
+#include "compositor.h"
+
+Window::Window(Compositor *compositor) :
+    m_compositor(compositor)
+{
+}
+
+void Window::addView(View *view)
+{
+    connect(view, &QWaylandView::surfaceDestroyed,
+            this, &Window::viewSurfaceDestroyed);
+    m_views << view;
+}
+
+void Window::viewSurfaceDestroyed()
+{
+    View *view = qobject_cast<View *>(sender());
+    m_views.removeAll(view);
+    if (m_views.empty()) {
+        delete this;
+    }
+}
+
+void Window::initializeGL()
+{
+    m_textureBlitter.create();
+}
+
+void Window::paintGL()
+{
+    QWaylandOutput *output = m_compositor->outputFor(this);
+    if (output) {
+        output->frameStarted();
+    }
+
+    QOpenGLFunctions *functions = context()->functions();
+    functions->glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+    functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    m_textureBlitter.bind();
+
+    functions->glEnable(GL_BLEND);
+    functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    GLenum currentTarget = GL_TEXTURE_2D;
+    for (View *view : qAsConst(m_views)) {
+        QOpenGLTexture *texture = view->getTexture();
+        if (!texture) {
+            continue;
+        }
+        if (texture->target() != currentTarget) {
+            currentTarget = texture->target();
+            m_textureBlitter.bind(currentTarget);
+        }
+        QWaylandSurface *surface = view->surface();
+        if ((surface && surface->hasContent() && !surface->isCursorSurface()) ||
+                view->isBufferLocked()) {
+            QSize s = view->size();
+            if (s.isEmpty()) {
+                continue;
+            }
+            QPointF pos = view->position() + view->parentPosition();
+            QRectF surfaceGeometry(pos, s);
+            QOpenGLTextureBlitter::Origin surfaceOrigin = view->textureOrigin();
+            QRectF targetRect(surfaceGeometry.topLeft(),
+                              surfaceGeometry.size());
+            QMatrix4x4 targetTransform = QOpenGLTextureBlitter::targetTransform(targetRect,
+                                                                                QRect(QPoint(), size()));
+            m_textureBlitter.blit(texture->textureId(),
+                                  targetTransform, surfaceOrigin);
+        }
+    }
+    functions->glDisable(GL_BLEND);
+
+    m_textureBlitter.release();
+
+    if (output) {
+        output->sendFrameCallbacks();
+    }
+}
+
+bool Window::event(QEvent *e)
+{
+    if (e->type() == QEvent::Close) {
+        if (!m_views.empty()) {
+            m_views.first()->sendClose();
+            e->ignore();
+            return false;
+        }
+    }
+    return QOpenGLWindow::event(e);
+}
+
+View *Window::viewAt(const QPointF &point)
+{
+    View *ret = nullptr;
+    for (View *view : qAsConst(m_views)) {
+        QRectF geom(view->position(), view->size());
+        if (geom.contains(point)) {
+            ret = view;
+        }
+    }
+    return ret;
+}
+
+void Window::mousePressEvent(QMouseEvent *e)
+{
+    if (m_mouseView.isNull()) {
+        m_mouseView = viewAt(e->localPos());
+        if (!m_mouseView) {
+            return;
+        }
+        QMouseEvent moveEvent(QEvent::MouseMove, e->localPos(), e->globalPos(),
+                              Qt::NoButton, Qt::NoButton, e->modifiers());
+        sendMouseEvent(&moveEvent, m_mouseView);
+    }
+    sendMouseEvent(e, m_mouseView);
+}
+
+void Window::mouseReleaseEvent(QMouseEvent *e)
+{
+    sendMouseEvent(e, m_mouseView);
+    if (e->buttons() == Qt::NoButton) {
+        m_mouseView = nullptr;
+    }
+}
+
+void Window::mouseMoveEvent(QMouseEvent *e)
+{
+    View *view;
+    if (m_mouseView) {
+        view = m_mouseView.data();
+    } else {
+        view = viewAt(e->localPos());
+    }
+    sendMouseEvent(e, view);
+    if (!view) {
+        setCursor(Qt::ArrowCursor);
+    }
+}
+
+void Window::sendMouseEvent(QMouseEvent *e, View *target)
+{
+    QPointF mappedPos = e->localPos();
+    if (target) {
+        mappedPos -= target->position();
+    }
+    QMouseEvent viewEvent(e->type(), mappedPos, e->localPos(), e->button(),
+                          e->buttons(), e->modifiers());
+    m_compositor->handleMouseEvent(target, &viewEvent);
+}
+
+void Window::keyPressEvent(QKeyEvent *e)
+{
+    m_compositor->seatFor(e)->sendFullKeyEvent(e);
+}
+
+void Window::keyReleaseEvent(QKeyEvent *e)
+{
+    m_compositor->seatFor(e)->sendFullKeyEvent(e);
+}
+
+void Window::touchEvent(QTouchEvent *e)
+{
+    bool touchClient = false;
+    QSet<QWaylandClient *> clients;
+    QWaylandSeat *seat = m_compositor->seatFor(e);
+    for (const QTouchEvent::TouchPoint &p : e->touchPoints()) {
+        QPointF pos = p.pos();
+        View *view = viewAt(pos);
+        if (!view) {
+            continue;
+        }
+        if (p.state() == Qt::TouchPointReleased) {
+            seat->setKeyboardFocus(view->surface());
+        }
+        // TODO: Look at how wlroots detects touch-able clients instead of
+        //       whitelisting KDE clients.
+        if (view->appId().startsWith("org.kde.")) {
+            touchClient = true;
+        }
+        pos -= view->position();
+        seat->sendTouchPointEvent(view->surface(), p.id(), pos, p.state());
+        clients.insert(view->surface()->client());
+    }
+    for (QWaylandClient *client : clients) {
+        seat->sendTouchFrameEvent(client);
+    }
+    if (!touchClient) {
+        // Make Qt synthesise a mouse event for it.
+        e->ignore();
+    }
+}
