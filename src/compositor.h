@@ -78,23 +78,19 @@ public:
     QOpenGLTextureBlitter::Origin textureOrigin() const;
     QPointF position() const { return m_position; }
     void setPosition(const QPointF &pos) { m_position = pos; }
-    QSize size() const;
-    void setParentView(View *parent);
     View *parentView() const { return m_parentView; }
-    QPointF parentPosition() const;
+    void setParentView(View *parent);
     QPoint offset() const { return m_offset; }
     QString appId() const;
     QString title() const;
 
 private:
-    QSize outputRealSize() const;
     friend class Compositor;
     Compositor *m_compositor = nullptr;
     GLenum m_textureTarget = GL_TEXTURE_2D;
     QOpenGLTexture *m_texture = nullptr;
     QOpenGLTextureBlitter::Origin m_origin;
     QPointF m_position;
-    QSize m_size;
     QWaylandWlShellSurface *m_wlShellSurface = nullptr;
     QWaylandXdgToplevel *m_xdgToplevel = nullptr;
     QWaylandXdgPopup *m_xdgPopup = nullptr;
@@ -102,9 +98,14 @@ private:
     QPoint m_offset;
 
 public slots:
-    void onOutputGeometryChanged();
     void onOffsetForNextFrame(const QPoint &offset);
     void sendClose();
+
+private slots:
+    void onOutputGeometryChanged();
+    void updateMode();
+    void onScreenOrientationChanged(Qt::ScreenOrientation orientation);
+    void onWindowSizeChanged();
 };
 
 class Window;
@@ -154,6 +155,7 @@ private slots:
 private:
     bool surfaceIsFocusable(QWaylandSurface *surface);
     Window *ensureWindowForView(View *view);
+    Window *createWindow(View *view);
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;

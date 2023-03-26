@@ -50,17 +50,19 @@
 
 #include "window.h"
 
-#include <QMouseEvent>
 #include <QOpenGLFunctions>
 #include <QOpenGLTexture>
 #include <QOpenGLWindow>
+#include <QMatrix4x4>
+#include <QMouseEvent>
 #include <QPoint>
 #include <QPointF>
 #include <QRect>
 #include <QRectF>
+#include <QScreen>
 #include <QSet>
 #include <QTouchEvent>
-#include <QMatrix4x4>
+#include <QTransform>
 #include <QWaylandSeat>
 #include <QWaylandView>
 
@@ -92,6 +94,19 @@ void Window::initializeGL()
     m_textureBlitter.create();
 }
 
+QTransform Window::orientationTransform() const
+{
+    QTransform t;
+    t.translate(width() / 2, height() / 2);
+    t.rotate(m_rotation);
+    if (m_rotation == Rotate90 || m_rotation == Rotate270) {
+        t.translate(-height() / 2, -width() / 2);
+    } else {
+        t.translate(-width() / 2, -height() / 2);
+    }
+    return t;
+}
+
 void Window::paintGL()
 {
     QWaylandOutput *output = m_compositor->outputFor(this);
@@ -109,6 +124,9 @@ void Window::paintGL()
     functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     GLenum currentTarget = GL_TEXTURE_2D;
+
+    QTransform t = orientationTransform();
+
     for (View *view : qAsConst(m_views)) {
         QOpenGLTexture *texture = view->getTexture();
         if (!texture) {
@@ -119,21 +137,19 @@ void Window::paintGL()
             m_textureBlitter.bind(currentTarget);
         }
         QWaylandSurface *surface = view->surface();
-        if ((surface && surface->hasContent() && !surface->isCursorSurface()) ||
-                view->isBufferLocked()) {
-            QSize s = view->size();
-            if (s.isEmpty()) {
+        if (surface && surface->hasContent()) {
+            QSize destSize = surface->destinationSize();
+            if (destSize.isEmpty()) {
                 continue;
             }
-            QPointF pos = view->position() + view->parentPosition();
-            QRectF surfaceGeometry(pos, s);
-            QOpenGLTextureBlitter::Origin surfaceOrigin = view->textureOrigin();
-            QRectF targetRect(surfaceGeometry.topLeft(),
-                              surfaceGeometry.size());
-            QMatrix4x4 targetTransform = QOpenGLTextureBlitter::targetTransform(targetRect,
-                                                                                QRect(QPoint(), size()));
-            m_textureBlitter.blit(texture->textureId(),
-                                  targetTransform, surfaceOrigin);
+            QPointF pos = view->position();
+            QRectF targetRect = t.mapRect(QRectF(pos, destSize));
+            QRect viewportRect(QPoint(), size());
+            QMatrix4x4 m = QOpenGLTextureBlitter::targetTransform(targetRect,
+                                                                  viewportRect);
+            m.rotate(-m_rotation, 0, 0, 1);
+            m_textureBlitter.blit(texture->textureId(), m,
+                                  view->textureOrigin());
         }
     }
     functions->glDisable(GL_BLEND);
@@ -159,26 +175,40 @@ bool Window::event(QEvent *e)
 
 View *Window::viewAt(const QPointF &point)
 {
-    View *ret = nullptr;
-    for (View *view : qAsConst(m_views)) {
-        QRectF geom(view->position(), view->size());
-        if (geom.contains(point)) {
-            ret = view;
+    const QPointF mappedPoint = mapInputPoint(point);
+    const auto views = m_views;
+    for (auto i = views.crbegin(), end = views.crend(); i != end; ++i) {
+        View *view = *i;
+        QWaylandSurface *surface = view->surface();
+        if (surface && surface->hasContent()) {
+            QRectF geom(view->position(), surface->destinationSize());
+            if (geom.contains(mappedPoint)) {
+                return view;
+            }
         }
     }
-    return ret;
+    return nullptr;
+}
+
+QPointF Window::mapInputPoint(const QPointF &point) const {
+    bool invertible;
+    QTransform t = orientationTransform().inverted(&invertible);
+    Q_ASSERT(invertible);
+    return t.map(point);
 }
 
 void Window::mousePressEvent(QMouseEvent *e)
 {
     if (m_mouseView.isNull()) {
         m_mouseView = viewAt(e->localPos());
+        /*
         if (!m_mouseView) {
             return;
         }
         QMouseEvent moveEvent(QEvent::MouseMove, e->localPos(), e->globalPos(),
                               Qt::NoButton, Qt::NoButton, e->modifiers());
         sendMouseEvent(&moveEvent, m_mouseView);
+        */
     }
     sendMouseEvent(e, m_mouseView);
 }
@@ -205,15 +235,15 @@ void Window::mouseMoveEvent(QMouseEvent *e)
     }
 }
 
-void Window::sendMouseEvent(QMouseEvent *e, View *target)
+void Window::sendMouseEvent(QMouseEvent *e, View *view)
 {
-    QPointF mappedPos = e->localPos();
-    if (target) {
-        mappedPos -= target->position();
+    QPointF mappedPos = mapInputPoint(e->localPos());
+    if (view) {
+        mappedPos -= view->position();
     }
     QMouseEvent viewEvent(e->type(), mappedPos, e->localPos(), e->button(),
                           e->buttons(), e->modifiers());
-    m_compositor->handleMouseEvent(target, &viewEvent);
+    m_compositor->handleMouseEvent(view, &viewEvent);
 }
 
 void Window::keyPressEvent(QKeyEvent *e)
@@ -245,8 +275,10 @@ void Window::touchEvent(QTouchEvent *e)
         if (view->appId().startsWith("org.kde.")) {
             touchClient = true;
         }
-        pos -= view->position();
-        seat->sendTouchPointEvent(view->surface(), p.id(), pos, p.state());
+        QPointF mappedPos = mapInputPoint(pos);
+        mappedPos -= view->position();
+        seat->sendTouchPointEvent(view->surface(), p.id(), mappedPos,
+                                  p.state());
         clients.insert(view->surface()->client());
     }
     for (QWaylandClient *client : clients) {

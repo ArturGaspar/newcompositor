@@ -51,6 +51,8 @@
 #include "compositor.h"
 
 #include <QEvent>
+#include <QScreen>
+#include <QSysInfo>
 #include <QWaylandBufferRef>
 #include <QWaylandOutput>
 #include <QWaylandSeat>
@@ -77,7 +79,6 @@ QOpenGLTexture *View::getTexture()
     if (newContent) {
         m_texture = buf.toOpenGLTexture();
         if (surface()) {
-            m_size = surface()->destinationSize();
             switch (buf.origin()) {
             case QWaylandSurface::OriginTopLeft:
                 m_origin = QOpenGLTextureBlitter::OriginTopLeft;
@@ -104,43 +105,72 @@ void View::setParentView(View *parent) {
     m_parentView = parent;
 }
 
-QPointF View::parentPosition() const
-{
-    if (m_parentView) {
-        return m_parentView->position() + m_parentView->parentPosition();
-    } else {
-        return QPointF();
-    }
-}
-
-QSize View::size() const
-{
-    if (surface()) {
-        return surface()->destinationSize();
-    } else {
-        return m_size;
-    }
-}
-
-QSize View::outputRealSize() const
-{
-    if (output()) {
-        return (output()->geometry().size() /
-                output()->window()->devicePixelRatio());
-    } else {
-        return QSize();
-    }
-}
-
 void View::onOutputGeometryChanged()
 {
     if (m_wlShellSurface) {
-        m_wlShellSurface->sendConfigure(outputRealSize(),
+        m_wlShellSurface->sendConfigure(output()->geometry().size(),
                                         QWaylandWlShellSurface::NoneEdge);
     }
     if (m_xdgToplevel) {
-        m_xdgToplevel->sendMaximized(outputRealSize());
+        m_xdgToplevel->sendMaximized(output()->geometry().size());
     }
+}
+
+void View::updateMode()
+{
+    auto *window = qobject_cast<Window *>(output()->window());
+    if (!window) {
+        return;
+    }
+
+    QSize size = window->size();
+    if (size.isEmpty()) {
+        return;
+    }
+
+    int rotation = 0;
+    int refreshRate;
+
+    QScreen *screen = window->screen();
+    if (screen) {
+        Qt::ScreenOrientation sizeOrientation;
+        switch (screen->orientation()) {
+        case Qt::InvertedPortraitOrientation:
+            sizeOrientation = Qt::PortraitOrientation;
+            rotation += 180;
+            break;
+        case Qt::InvertedLandscapeOrientation:
+            sizeOrientation = Qt::LandscapeOrientation;
+            rotation += 180;
+            break;
+        default:
+            sizeOrientation = screen->orientation();
+        }
+        if (screen->primaryOrientation() != sizeOrientation) {
+            rotation += 90;
+            size.transpose();
+        }
+        refreshRate = screen->refreshRate() * 1000;
+    } else {
+        refreshRate = 60 * 1000;
+    }
+
+    window->setRotation(static_cast<Window::Rotation>(rotation));
+
+    QWaylandOutputMode mode(size, refreshRate);
+    output()->addMode(mode, false);
+    output()->setCurrentMode(mode);
+}
+
+void View::onScreenOrientationChanged(Qt::ScreenOrientation orientation)
+{
+    Q_UNUSED(orientation);
+    updateMode();
+}
+
+void View::onWindowSizeChanged()
+{
+    updateMode();
 }
 
 void View::onOffsetForNextFrame(const QPoint &offset)
@@ -215,7 +245,8 @@ void Compositor::create()
     connect(this, &QWaylandCompositor::subsurfaceChanged,
             this, &Compositor::onSubsurfaceChanged);
 
-    new QWaylandOutput(this, nullptr);
+    auto *output = new QWaylandOutput(this, nullptr);
+    setDefaultOutput(output);
     QWaylandCompositor::create();
 }
 
@@ -240,7 +271,7 @@ void Compositor::onSurfaceCreated(QWaylandSurface *surface)
 
 void Compositor::surfaceHasContentChanged()
 {
-    QWaylandSurface *surface = qobject_cast<QWaylandSurface *>(sender());
+    auto *surface = qobject_cast<QWaylandSurface *>(sender());
     if (!surface->role()) {
         return;
     }
@@ -249,7 +280,7 @@ void Compositor::surfaceHasContentChanged()
             if (surfaceIsFocusable(surface)) {
                 defaultSeat()->setKeyboardFocus(surface);
             }
-            auto view = qobject_cast<View *>(surface->primaryView());
+            auto *view = qobject_cast<View *>(surface->primaryView());
             ensureWindowForView(view);
         }
         triggerRender(surface);
@@ -258,13 +289,13 @@ void Compositor::surfaceHasContentChanged()
 
 void Compositor::surfaceDestroyed()
 {
-    QWaylandSurface *surface = qobject_cast<QWaylandSurface *>(sender());
+    auto *surface = qobject_cast<QWaylandSurface *>(sender());
     triggerRender(surface);
 }
 
 void Compositor::onSurfaceRedraw()
 {
-    QWaylandSurface *surface = qobject_cast<QWaylandSurface *>(sender());
+    auto *surface = qobject_cast<QWaylandSurface *>(sender());
     triggerRender(surface);
 }
 
@@ -276,26 +307,57 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
              surface->role() == QWaylandXdgPopup::role()));
 }
 
+Window *Compositor::createWindow(View *view)
+{
+    auto window = new Window(this);
+
+    auto *output = new QWaylandOutput(this, window);
+    output->setParent(window);
+
+    view->setOutput(output);
+    window->addView(view);
+
+    connect(output, &QWaylandOutput::geometryChanged,
+            view, &View::onOutputGeometryChanged);
+
+    connect(window, &QWindow::heightChanged,
+            view, &View::onWindowSizeChanged);
+    connect(window, &QWindow::widthChanged,
+            view, &View::onWindowSizeChanged);
+
+    QScreen *screen = window->screen();
+    connect(screen, &QScreen::orientationChanged,
+            view, &View::onScreenOrientationChanged);
+    screen->setOrientationUpdateMask(Qt::LandscapeOrientation |
+                                     Qt::PortraitOrientation |
+                                     Qt::InvertedLandscapeOrientation |
+                                     Qt::InvertedPortraitOrientation);
+
+    if (QSysInfo::productType() == "sailfishos") {
+        window->showFullScreen();
+    } else {
+        window->resize(360, 640);
+        window->show();
+    }
+
+    return window;
+}
+
 Window *Compositor::ensureWindowForView(View *view)
 {
     Window *window;
     if (view->output()) {
         Q_ASSERT(view->output()->window());
         window = qobject_cast<Window *>(view->output()->window());
-    } else if (view->parentView()) {
-        window = ensureWindowForView(view->parentView());
-        view->setOutput(outputFor(window));
-        window->addView(view);
+        Q_ASSERT(window);
     } else {
-        window = new Window(this);
-        window->show();
-        auto *output = new QWaylandOutput(this, window);
-        output->setParent(window);
-        output->setSizeFollowsWindow(true);
-        view->setOutput(output);
-        window->addView(view);
-        connect(output, &QWaylandOutput::geometryChanged,
-                view, &View::onOutputGeometryChanged);
+        if (view->parentView()) {
+            window = ensureWindowForView(view->parentView());
+            view->setOutput(outputFor(window));
+            window->addView(view);
+        } else {
+            window = createWindow(view);
+        }
     }
     return window;
 }
@@ -326,7 +388,6 @@ void Compositor::onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
     Q_ASSERT(parentView);
     view->setParentView(parentView);
     view->setPosition(parentView->position() + relativeToParent);
-    //    raise(view);
 }
 
 void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
@@ -343,7 +404,6 @@ void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
     Q_ASSERT(parentView);
     view->setParentView(parentView);
     view->setPosition(parentView->position() + relativeToParent);
-    //    raise(view);
 }
 
 void Compositor::onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
@@ -372,7 +432,9 @@ void Compositor::onSubsurfaceChanged(QWaylandSurface *child,
                                      QWaylandSurface *parent)
 {
     auto *view = qobject_cast<View *>(child->primaryView());
+    Q_ASSERT(view);
     auto *parentView = qobject_cast<View *>(parent->primaryView());
+    Q_ASSERT(parentView);
     view->setParentView(parentView);
 }
 
@@ -384,6 +446,7 @@ void Compositor::onSubsurfacePositionChanged(const QPoint &position)
     }
     Q_ASSERT(surface->primaryView());
     auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
     view->setPosition(position);
     triggerRender(surface);
 }

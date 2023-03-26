@@ -51,10 +51,10 @@
 #ifndef WINDOW_H
 #define WINDOW_H
 
-#include <QList>
 #include <QOpenGLWindow>
 #include <QOpenGLTextureBlitter>
 #include <QPointer>
+#include <QVector>
 
 QT_BEGIN_NAMESPACE
 
@@ -76,6 +76,14 @@ public:
     void addView(View *view);
     void removeView(View *view);
 
+    enum Rotation {
+        Rotate0 = 0,
+        Rotate90 = 90,
+        Rotate180 = 180,
+        Rotate270 = 270
+    };
+    void setRotation(Rotation rotation) { m_rotation = rotation; }
+
 protected:
     void initializeGL() override;
     void paintGL() override;
@@ -96,12 +104,16 @@ private slots:
 
 private:
     View *viewAt(const QPointF &point);
-    void sendMouseEvent(QMouseEvent *e, View *target);
+    void sendMouseEvent(QMouseEvent *e, View *view);
+
+    QTransform orientationTransform() const;
+    QPointF mapInputPoint(const QPointF &point) const;
 
     QOpenGLTextureBlitter m_textureBlitter;
     Compositor *m_compositor = nullptr;
-    QList<View *> m_views;
+    QVector<View *> m_views;
     QPointer<View> m_mouseView;
+    Rotation m_rotation = Rotate0;
 };
 
 QT_END_NAMESPACE
