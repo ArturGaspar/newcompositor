@@ -51,6 +51,7 @@
 #include "compositor.h"
 
 #include <QEvent>
+#include <QGuiApplication>
 #include <QScreen>
 #include <QSysInfo>
 #include <QWaylandBufferRef>
@@ -245,8 +246,14 @@ void Compositor::create()
     connect(this, &QWaylandCompositor::subsurfaceChanged,
             this, &Compositor::onSubsurfaceChanged);
 
+    QScreen *screen = QGuiApplication::primaryScreen();
     auto *output = new QWaylandOutput(this, nullptr);
+    output->setAvailableGeometry(screen->availableGeometry());
+    output->setManufacturer(screen->manufacturer());
+    output->setModel(screen->model());
+    output->setPhysicalSize(screen->physicalSize().toSize());
     setDefaultOutput(output);
+
     QWaylandCompositor::create();
 }
 
@@ -314,6 +321,13 @@ Window *Compositor::createWindow(View *view)
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 
+    QScreen *screen = window->screen();
+
+    output->setAvailableGeometry(screen->availableGeometry());
+    output->setManufacturer(screen->manufacturer());
+    output->setModel(screen->model());
+    output->setPhysicalSize(screen->physicalSize().toSize());
+
     view->setOutput(output);
     window->addView(view);
 
@@ -325,7 +339,6 @@ Window *Compositor::createWindow(View *view)
     connect(window, &QWindow::widthChanged,
             view, &View::onWindowSizeChanged);
 
-    QScreen *screen = window->screen();
     connect(screen, &QScreen::orientationChanged,
             view, &View::onScreenOrientationChanged);
     screen->setOrientationUpdateMask(Qt::LandscapeOrientation |
@@ -339,6 +352,7 @@ Window *Compositor::createWindow(View *view)
         window->resize(360, 640);
         window->show();
     }
+    view->updateMode();
 
     return window;
 }
