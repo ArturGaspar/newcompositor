@@ -50,11 +50,13 @@
 
 #include "window.h"
 
-#include <QOpenGLFunctions>
-#include <QOpenGLTexture>
-#include <QOpenGLWindow>
 #include <QMatrix4x4>
 #include <QMouseEvent>
+#include <QOpenGLFunctions>
+#include <QOpenGLTexture>
+#include <QOpenGLTextureBlitter>
+#include <QOpenGLWindow>
+#include <QPainter>
 #include <QPoint>
 #include <QPointF>
 #include <QRect>
@@ -94,6 +96,17 @@ void Window::initializeGL()
     m_textureBlitter.create();
 }
 
+void Window::resizeGL(int w, int h)
+{
+    QImage backgroundImage(w, h, QImage::Format_RGB32);
+    backgroundImage.fill(Qt::white);
+    QPainter p(&backgroundImage);
+    p.fillRect(0, 0, w, h, Qt::Dense4Pattern);
+    p.end();
+    m_backgroundTexture = new QOpenGLTexture(backgroundImage,
+                                             QOpenGLTexture::DontGenerateMipMaps);
+}
+
 QTransform Window::orientationTransform() const
 {
     QTransform t;
@@ -115,7 +128,6 @@ void Window::paintGL()
     }
 
     QOpenGLFunctions *functions = context()->functions();
-    functions->glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
     functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     m_textureBlitter.bind();
@@ -123,10 +135,16 @@ void Window::paintGL()
     functions->glEnable(GL_BLEND);
     functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    GLenum currentTarget = GL_TEXTURE_2D;
+    QRect viewportRect(QPoint(), size());
+
+    m_textureBlitter.blit(m_backgroundTexture->textureId(),
+                          QOpenGLTextureBlitter::targetTransform(viewportRect,
+                                                                 viewportRect),
+                          QOpenGLTextureBlitter::OriginTopLeft);
 
     QTransform t = orientationTransform();
 
+    GLenum currentTarget = GL_TEXTURE_2D;
     for (View *view : qAsConst(m_views)) {
         QOpenGLTexture *texture = view->getTexture();
         if (!texture) {
@@ -142,9 +160,7 @@ void Window::paintGL()
             if (destSize.isEmpty()) {
                 continue;
             }
-            QPointF pos = view->position();
-            QRectF targetRect = t.mapRect(QRectF(pos, destSize));
-            QRect viewportRect(QPoint(), size());
+            QRectF targetRect = t.mapRect(QRectF(view->position(), destSize));
             QMatrix4x4 m = QOpenGLTextureBlitter::targetTransform(targetRect,
                                                                   viewportRect);
             m.rotate(-m_rotation, 0, 0, 1);

@@ -52,6 +52,7 @@
 #define WINDOW_H
 
 #include <QOpenGLWindow>
+#include <QOpenGLTexture>
 #include <QOpenGLTextureBlitter>
 #include <QPointer>
 #include <QVector>
@@ -64,7 +65,6 @@ class View;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
-class QOpenGLTextureBlitter;
 class QTouchEvent;
 
 class Window : public QOpenGLWindow
@@ -86,6 +86,7 @@ public:
 
 protected:
     void initializeGL() override;
+    void resizeGL(int w, int h) override;
     void paintGL() override;
 
     bool event(QEvent *e) override;
@@ -110,6 +111,7 @@ private:
     QPointF mapInputPoint(const QPointF &point) const;
 
     QOpenGLTextureBlitter m_textureBlitter;
+    QOpenGLTexture *m_backgroundTexture;
     Compositor *m_compositor = nullptr;
     QVector<View *> m_views;
     QPointer<View> m_mouseView;
