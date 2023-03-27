@@ -48,72 +48,95 @@
 **
 ****************************************************************************/
 
-#ifndef COMPOSITOR_H
-#define COMPOSITOR_H
+#include "view.h"
 
-#include <QWaylandCompositor>
-#include <QPoint>
+#include <QWaylandBufferRef>
+#include <QWaylandOutput>
+#include <QWaylandSurface>
+#include <QWaylandWlShellSurface>
+#include <QWaylandXdgPopup>
+#include <QWaylandXdgToplevel>
 
-QT_BEGIN_NAMESPACE
+#include "compositor.h"
 
-class QWaylandOutput;
-class QWaylandSurface;
-class QWaylandWlShell;
-class QWaylandWlShellSurface;
-class QWaylandXdgDecorationManagerV1;
-class QWaylandXdgPopup;
-class QWaylandXdgShell;
-class QWaylandXdgSurface;
-class QWaylandXdgToplevel;
-
-class View;
-class Window;
-
-class Compositor : public QWaylandCompositor
+View::View(Compositor *compositor) :
+    m_compositor(compositor)
 {
-    Q_OBJECT
-public:
-    Compositor();
-    ~Compositor() override;
-    void create() override;
+}
 
-    bool surfaceIsFocusable(QWaylandSurface *surface);
+QOpenGLTexture *View::getTexture()
+{
+    bool newContent = advance();
+    QWaylandBufferRef buf = currentBuffer();
+    if (newContent) {
+        m_texture = buf.toOpenGLTexture();
+        if (surface()) {
+            switch (buf.origin()) {
+            case QWaylandSurface::OriginTopLeft:
+                m_origin = QOpenGLTextureBlitter::OriginTopLeft;
+                break;
+            case QWaylandSurface::OriginBottomLeft:
+                m_origin = QOpenGLTextureBlitter::OriginBottomLeft;
+                break;
+            }
+        }
+    } else if (!buf.hasContent()) {
+        m_texture = nullptr;
+    }
+    return m_texture;
+}
 
-signals:
-    void frameOffset(const QPoint &offset);
+QOpenGLTextureBlitter::Origin View::textureOrigin() const
+{
+    return m_origin;
+}
 
-private slots:
-    void triggerRender(QWaylandSurface *surface);
-    void surfaceHasContentChanged();
-    void surfaceDestroyed();
-    void onSurfaceRedraw();
+void View::onOutputGeometryChanged()
+{
+    if (m_wlShellSurface) {
+        m_wlShellSurface->sendConfigure(output()->geometry().size(),
+                                        QWaylandWlShellSurface::NoneEdge);
+    }
+    if (m_xdgToplevel) {
+        m_xdgToplevel->sendMaximized(output()->geometry().size());
+    }
+}
 
-    void onOutputAdded(QWaylandOutput *output);
+void View::onOffsetForNextFrame(const QPoint &offset)
+{
+    m_offset = offset;
+    m_position += offset;
+}
 
-    void onSurfaceCreated(QWaylandSurface *surface);
-    void onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface);
-    void onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
-                                      const QPoint &relativeToParent,
-                                      bool inactive);
-    void onWlShellSurfaceSetPopup(QWaylandSeat *seat,
-                                  QWaylandSurface *parentSurface,
-                                  const QPoint &relativeToParent);
-    void onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
-                              QWaylandXdgSurface *xdgSurface);
-    void onXdgPopupCreated(QWaylandXdgPopup *popup,
-                           QWaylandXdgSurface *xdgSurface);
+void View::sendClose()
+{
+    if (m_xdgToplevel) {
+        m_xdgToplevel->sendClose();
+    } else if (m_xdgPopup) {
+        m_xdgPopup->sendPopupDone();
+    } else if (surface()) {
+        m_compositor->destroyClientForSurface(surface());
+    }
+}
 
-    void onSubsurfaceChanged(QWaylandSurface *child, QWaylandSurface *parent);
-    void onSubsurfacePositionChanged(const QPoint &position);
+QString View::appId() const
+{
+    if (m_xdgToplevel) {
+        return m_xdgToplevel->appId();
+    }
+    if (m_wlShellSurface) {
+        return m_wlShellSurface->className();
+    }
+    return QString();
+}
 
-private:
-    Window *ensureWindowForView(View *view);
-    Window *createWindow(View *view);
-    QWaylandWlShell *m_wlShell;
-    QWaylandXdgShell *m_xdgShell;
-    QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
-};
-
-QT_END_NAMESPACE
-
-#endif // COMPOSITOR_H
+QString View::title() const
+{
+    if (m_xdgToplevel) {
+        return m_xdgToplevel->title();
+    }
+    if (m_wlShellSurface) {
+        return m_wlShellSurface->title();
+    }
+    return QString();
+}

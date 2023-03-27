@@ -50,113 +50,21 @@
 
 #include "compositor.h"
 
-#include <QEvent>
-#include <QGuiApplication>
 #include <QScreen>
 #include <QSysInfo>
-#include <QWaylandBufferRef>
 #include <QWaylandOutput>
 #include <QWaylandSeat>
 #include <QWaylandSurface>
-#include <QWaylandTouch>
 #include <QWaylandWlShell>
 #include <QWaylandWlShellSurface>
 #include <QWaylandXdgPopup>
 #include <QWaylandXdgShell>
 #include <QWaylandXdgToplevel>
 #include <QWaylandXdgDecorationManagerV1>
+#include <QWindow>
 
+#include "view.h"
 #include "window.h"
-
-View::View(Compositor *compositor) :
-    m_compositor(compositor)
-{
-}
-
-QOpenGLTexture *View::getTexture()
-{
-    bool newContent = advance();
-    QWaylandBufferRef buf = currentBuffer();
-    if (newContent) {
-        m_texture = buf.toOpenGLTexture();
-        if (surface()) {
-            switch (buf.origin()) {
-            case QWaylandSurface::OriginTopLeft:
-                m_origin = QOpenGLTextureBlitter::OriginTopLeft;
-                break;
-            case QWaylandSurface::OriginBottomLeft:
-                m_origin = QOpenGLTextureBlitter::OriginBottomLeft;
-                break;
-            }
-        }
-    } else if (!buf.hasContent()) {
-        m_texture = nullptr;
-    }
-    return m_texture;
-}
-
-QOpenGLTextureBlitter::Origin View::textureOrigin() const
-{
-    return m_origin;
-}
-
-void View::setParentView(View *parent) {
-    Q_ASSERT(!m_parentView);
-    Q_ASSERT(!output());
-    Q_ASSERT(parent != this);
-    m_parentView = parent;
-}
-
-void View::onOutputGeometryChanged()
-{
-    if (m_wlShellSurface) {
-        m_wlShellSurface->sendConfigure(output()->geometry().size(),
-                                        QWaylandWlShellSurface::NoneEdge);
-    }
-    if (m_xdgToplevel) {
-        m_xdgToplevel->sendMaximized(output()->geometry().size());
-    }
-}
-
-void View::onOffsetForNextFrame(const QPoint &offset)
-{
-    m_offset = offset;
-    setPosition(position() + offset);
-}
-
-void View::sendClose()
-{
-    if (m_xdgToplevel) {
-        m_xdgToplevel->sendClose();
-    } else if (m_xdgPopup) {
-        m_xdgPopup->sendPopupDone();
-    } else if (surface()) {
-        m_compositor->destroyClientForSurface(surface());
-    }
-}
-
-QString View::appId() const
-{
-    if (m_xdgToplevel) {
-        return m_xdgToplevel->appId();
-    }
-    if (m_wlShellSurface) {
-        return m_wlShellSurface->className();
-    }
-    return QString();
-}
-
-QString View::title() const
-{
-    if (m_xdgToplevel) {
-        return m_xdgToplevel->title();
-    }
-    if (m_wlShellSurface) {
-        return m_wlShellSurface->title();
-    }
-    return QString();
-}
-
 
 Compositor::Compositor() :
     m_wlShell(new QWaylandWlShell(this)),
@@ -329,8 +237,8 @@ void Compositor::onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
 
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
     Q_ASSERT(parentView);
-    view->setParentView(parentView);
-    view->setPosition(parentView->position() + relativeToParent);
+    view->m_parentView = parentView;
+    view->m_position = parentView->position() + relativeToParent;
 }
 
 void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
@@ -345,8 +253,8 @@ void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
 
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
     Q_ASSERT(parentView);
-    view->setParentView(parentView);
-    view->setPosition(parentView->position() + relativeToParent);
+    view->m_parentView = parentView;
+    view->m_position = parentView->position() + relativeToParent;
 }
 
 void Compositor::onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
@@ -364,9 +272,10 @@ void Compositor::onXdgPopupCreated(QWaylandXdgPopup *popup,
     Q_ASSERT(view);
     auto *parentView = qobject_cast<View *>(popup->parentXdgSurface()->surface()->primaryView());
     Q_ASSERT(parentView);
-    view->setParentView(parentView);
-    view->setPosition(parentView->position() + popup->anchorRect().topLeft() +
-                      popup->offset());
+    view->m_parentView = parentView;
+    view->m_position = (parentView->position() +
+                        popup->anchorRect().topLeft() +
+                        popup->offset());
     view->m_xdgPopup = popup;
 }
 
@@ -377,19 +286,19 @@ void Compositor::onSubsurfaceChanged(QWaylandSurface *child,
     Q_ASSERT(view);
     auto *parentView = qobject_cast<View *>(parent->primaryView());
     Q_ASSERT(parentView);
-    view->setParentView(parentView);
+    view->m_parentView = parentView;
 }
 
 void Compositor::onSubsurfacePositionChanged(const QPoint &position)
 {
-    QWaylandSurface *surface = qobject_cast<QWaylandSurface *>(sender());
+    auto *surface = qobject_cast<QWaylandSurface *>(sender());
     if (!surface) {
         return;
     }
     Q_ASSERT(surface->primaryView());
     auto *view = qobject_cast<View *>(surface->primaryView());
     Q_ASSERT(view);
-    view->setPosition(position);
+    view->m_position = position;
     triggerRender(surface);
 }
 

@@ -2,12 +2,14 @@ QT += gui waylandcompositor
 
 HEADERS += \
     compositor.h \
+    view.h \
     window.h \
 #    xwayland.h \
 #    xwm.h
 
 SOURCES += main.cpp \
     compositor.cpp \
+    view.cpp \
     window.cpp \
 #    xwayland.cpp \
 #    xwm.cpp

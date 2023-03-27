@@ -48,72 +48,60 @@
 **
 ****************************************************************************/
 
-#ifndef COMPOSITOR_H
-#define COMPOSITOR_H
+#ifndef VIEW_H
+#define VIEW_H
 
-#include <QWaylandCompositor>
+#include <QOpenGLTextureBlitter>
+#include <QPointF>
 #include <QPoint>
+#include <QSize>
+#include <QString>
+#include <QWaylandView>
 
 QT_BEGIN_NAMESPACE
 
+class QOpenGLTexture;
 class QWaylandOutput;
-class QWaylandSurface;
-class QWaylandWlShell;
 class QWaylandWlShellSurface;
-class QWaylandXdgDecorationManagerV1;
 class QWaylandXdgPopup;
-class QWaylandXdgShell;
-class QWaylandXdgSurface;
 class QWaylandXdgToplevel;
 
-class View;
-class Window;
+class Compositor;
 
-class Compositor : public QWaylandCompositor
+class View : public QWaylandView
 {
     Q_OBJECT
 public:
-    Compositor();
-    ~Compositor() override;
-    void create() override;
-
-    bool surfaceIsFocusable(QWaylandSurface *surface);
-
-signals:
-    void frameOffset(const QPoint &offset);
-
-private slots:
-    void triggerRender(QWaylandSurface *surface);
-    void surfaceHasContentChanged();
-    void surfaceDestroyed();
-    void onSurfaceRedraw();
-
-    void onOutputAdded(QWaylandOutput *output);
-
-    void onSurfaceCreated(QWaylandSurface *surface);
-    void onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface);
-    void onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
-                                      const QPoint &relativeToParent,
-                                      bool inactive);
-    void onWlShellSurfaceSetPopup(QWaylandSeat *seat,
-                                  QWaylandSurface *parentSurface,
-                                  const QPoint &relativeToParent);
-    void onXdgToplevelCreated(QWaylandXdgToplevel *toplevel,
-                              QWaylandXdgSurface *xdgSurface);
-    void onXdgPopupCreated(QWaylandXdgPopup *popup,
-                           QWaylandXdgSurface *xdgSurface);
-
-    void onSubsurfaceChanged(QWaylandSurface *child, QWaylandSurface *parent);
-    void onSubsurfacePositionChanged(const QPoint &position);
+    View(Compositor *compositor);
+    QOpenGLTexture *getTexture();
+    QOpenGLTextureBlitter::Origin textureOrigin() const;
+    QPointF position() const { return m_position; }
+    View *parentView() const { return m_parentView; }
+    QPoint offset() const { return m_offset; }
+    QString appId() const;
+    QString title() const;
 
 private:
-    Window *ensureWindowForView(View *view);
-    Window *createWindow(View *view);
-    QWaylandWlShell *m_wlShell;
-    QWaylandXdgShell *m_xdgShell;
-    QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
+    friend class Compositor;
+    Compositor *m_compositor = nullptr;
+    GLenum m_textureTarget = GL_TEXTURE_2D;
+    QOpenGLTexture *m_texture = nullptr;
+    QOpenGLTextureBlitter::Origin m_origin;
+    QPointF m_position;
+    QWaylandWlShellSurface *m_wlShellSurface = nullptr;
+    QWaylandXdgToplevel *m_xdgToplevel = nullptr;
+    QWaylandXdgPopup *m_xdgPopup = nullptr;
+    View *m_parentView = nullptr;
+    QPoint m_offset;
+
+public slots:
+    void onOffsetForNextFrame(const QPoint &offset);
+    void sendClose();
+
+private slots:
+    void onOutputGeometryChanged();
 };
 
 QT_END_NAMESPACE
 
-#endif // COMPOSITOR_H
+#endif // VIEW_H

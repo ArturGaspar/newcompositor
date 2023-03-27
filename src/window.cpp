@@ -71,6 +71,7 @@
 #include <QWaylandView>
 
 #include "compositor.h"
+#include "view.h"
 
 Window::Window(Compositor *compositor) :
     m_compositor(compositor)
