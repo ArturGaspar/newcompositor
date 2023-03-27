@@ -81,8 +81,7 @@ Window::Window(Compositor *compositor) :
             this, &Window::onScreenOrientationChanged);
     screen()->setOrientationUpdateMask(Qt::LandscapeOrientation |
                                        Qt::PortraitOrientation |
-                                       Qt::InvertedLandscapeOrientation |
-                                       Qt::InvertedPortraitOrientation);
+                                       Qt::InvertedLandscapeOrientation);
 }
 
 void Window::addView(View *view)
