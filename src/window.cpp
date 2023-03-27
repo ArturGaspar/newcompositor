@@ -230,13 +230,14 @@ void Window::updateOutputMode()
         refreshRate = 60 * 1000;
     }
 
+    reportContentOrientationChange(screen()->orientation());
+
     m_rotation = static_cast<Rotation>(rotation);
 
     QWaylandOutputMode mode(outputSize, refreshRate);
     output->addMode(mode, false);
     output->setCurrentMode(mode);
 }
-
 
 bool Window::event(QEvent *e)
 {
