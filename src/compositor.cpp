@@ -253,6 +253,9 @@ void Compositor::create()
     output->setManufacturer(screen->manufacturer());
     output->setModel(screen->model());
     output->setPhysicalSize(screen->physicalSize().toSize());
+    QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
+    output->addMode(mode, true);
+    output->setCurrentMode(mode);
     setDefaultOutput(output);
 
     QWaylandCompositor::create();
