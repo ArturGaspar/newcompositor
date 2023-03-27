@@ -65,6 +65,8 @@ class View;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QResizeEvent;
+class QShowEvent;
 class QTouchEvent;
 
 class Window : public QOpenGLWindow
@@ -74,15 +76,6 @@ public:
     Window(Compositor *compositor);
 
     void addView(View *view);
-    void removeView(View *view);
-
-    enum Rotation {
-        Rotate0 = 0,
-        Rotate90 = 90,
-        Rotate180 = 180,
-        Rotate270 = 270
-    };
-    void setRotation(Rotation rotation) { m_rotation = rotation; }
 
 protected:
     void initializeGL() override;
@@ -90,6 +83,9 @@ protected:
     void paintGL() override;
 
     bool event(QEvent *e) override;
+
+    void resizeEvent(QResizeEvent *e) override;
+    void showEvent(QShowEvent *e) override;
 
     void mousePressEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
@@ -102,8 +98,11 @@ protected:
 
 private slots:
     void viewSurfaceDestroyed();
+    void onScreenOrientationChanged(Qt::ScreenOrientation orientation);
 
 private:
+    void updateOutputMode();
+
     View *viewAt(const QPointF &point);
     void sendMouseEvent(QMouseEvent *e, View *view);
 
@@ -115,6 +114,13 @@ private:
     Compositor *m_compositor = nullptr;
     QVector<View *> m_views;
     QPointer<View> m_mouseView;
+
+    enum Rotation {
+        Rotate0 = 0,
+        Rotate90 = 90,
+        Rotate180 = 180,
+        Rotate270 = 270
+    };
     Rotation m_rotation = Rotate0;
 };
 

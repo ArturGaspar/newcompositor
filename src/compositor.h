@@ -103,9 +103,6 @@ public slots:
 
 private slots:
     void onOutputGeometryChanged();
-    void updateMode();
-    void onScreenOrientationChanged(Qt::ScreenOrientation orientation);
-    void onWindowSizeChanged();
 };
 
 class Window;
@@ -133,6 +130,8 @@ private slots:
     void surfaceHasContentChanged();
     void surfaceDestroyed();
     void onSurfaceRedraw();
+
+    void onOutputAdded(QWaylandOutput *output);
 
     void onSurfaceCreated(QWaylandSurface *surface);
     void onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface);

@@ -65,6 +65,8 @@
 #include <QSet>
 #include <QTouchEvent>
 #include <QTransform>
+#include <QWaylandOutput>
+#include <QWaylandOutputMode>
 #include <QWaylandSeat>
 #include <QWaylandView>
 
@@ -73,6 +75,13 @@
 Window::Window(Compositor *compositor) :
     m_compositor(compositor)
 {
+    // TODO: handle screen changes.
+    connect(screen(), &QScreen::orientationChanged,
+            this, &Window::onScreenOrientationChanged);
+    screen()->setOrientationUpdateMask(Qt::LandscapeOrientation |
+                                       Qt::PortraitOrientation |
+                                       Qt::InvertedLandscapeOrientation |
+                                       Qt::InvertedPortraitOrientation);
 }
 
 void Window::addView(View *view)
@@ -177,6 +186,58 @@ void Window::paintGL()
     }
 }
 
+void Window::onScreenOrientationChanged(Qt::ScreenOrientation orientation)
+{
+    Q_UNUSED(orientation);
+    updateOutputMode();
+}
+
+void Window::updateOutputMode()
+{
+    QSize outputSize = size();
+    if (outputSize.isEmpty()) {
+        return;
+    }
+
+    QWaylandOutput *output = m_compositor->outputFor(this);
+    if (!output) {
+        return;
+    }
+
+    int rotation = 0;
+    int refreshRate;
+
+    if (screen()) {
+        Qt::ScreenOrientation outputSizeOrientation;
+        switch (screen()->orientation()) {
+        case Qt::InvertedPortraitOrientation:
+            outputSizeOrientation = Qt::PortraitOrientation;
+            rotation += 180;
+            break;
+        case Qt::InvertedLandscapeOrientation:
+            outputSizeOrientation = Qt::LandscapeOrientation;
+            rotation += 180;
+            break;
+        default:
+            outputSizeOrientation = screen()->orientation();
+        }
+        if (screen()->primaryOrientation() != outputSizeOrientation) {
+            rotation += 90;
+            outputSize.transpose();
+        }
+        refreshRate = screen()->refreshRate() * 1000;
+    } else {
+        refreshRate = 60 * 1000;
+    }
+
+    m_rotation = static_cast<Rotation>(rotation);
+
+    QWaylandOutputMode mode(outputSize, refreshRate);
+    output->addMode(mode, false);
+    output->setCurrentMode(mode);
+}
+
+
 bool Window::event(QEvent *e)
 {
     if (e->type() == QEvent::Close) {
@@ -187,6 +248,18 @@ bool Window::event(QEvent *e)
         }
     }
     return QOpenGLWindow::event(e);
+}
+
+void Window::resizeEvent(QResizeEvent *e)
+{
+    updateOutputMode();
+    QOpenGLWindow::resizeEvent(e);
+}
+
+void Window::showEvent(QShowEvent *e)
+{
+    updateOutputMode();
+    QOpenGLWindow::showEvent(e);
 }
 
 View *Window::viewAt(const QPointF &point)

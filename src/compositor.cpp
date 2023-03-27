@@ -118,63 +118,6 @@ void View::onOutputGeometryChanged()
     }
 }
 
-void View::updateMode()
-{
-    auto *window = qobject_cast<Window *>(output()->window());
-    if (!window) {
-        return;
-    }
-
-    QSize size = window->size();
-    if (size.isEmpty()) {
-        return;
-    }
-
-    int rotation = 0;
-    int refreshRate;
-
-    QScreen *screen = window->screen();
-    if (screen) {
-        Qt::ScreenOrientation sizeOrientation;
-        switch (screen->orientation()) {
-        case Qt::InvertedPortraitOrientation:
-            sizeOrientation = Qt::PortraitOrientation;
-            rotation += 180;
-            break;
-        case Qt::InvertedLandscapeOrientation:
-            sizeOrientation = Qt::LandscapeOrientation;
-            rotation += 180;
-            break;
-        default:
-            sizeOrientation = screen->orientation();
-        }
-        if (screen->primaryOrientation() != sizeOrientation) {
-            rotation += 90;
-            size.transpose();
-        }
-        refreshRate = screen->refreshRate() * 1000;
-    } else {
-        refreshRate = 60 * 1000;
-    }
-
-    window->setRotation(static_cast<Window::Rotation>(rotation));
-
-    QWaylandOutputMode mode(size, refreshRate);
-    output()->addMode(mode, false);
-    output()->setCurrentMode(mode);
-}
-
-void View::onScreenOrientationChanged(Qt::ScreenOrientation orientation)
-{
-    Q_UNUSED(orientation);
-    updateMode();
-}
-
-void View::onWindowSizeChanged()
-{
-    updateMode();
-}
-
 void View::onOffsetForNextFrame(const QPoint &offset)
 {
     m_offset = offset;
@@ -242,22 +185,15 @@ void Compositor::create()
     m_xdgDecorationManager->initialize();
     m_xdgDecorationManager->setPreferredMode(QWaylandXdgToplevel::ServerSideDecoration);
 
+    connect(this, &QWaylandCompositor::outputAdded,
+            this, &Compositor::onOutputAdded);
+
     connect(this, &QWaylandCompositor::surfaceCreated,
             this, &Compositor::onSurfaceCreated);
     connect(this, &QWaylandCompositor::subsurfaceChanged,
             this, &Compositor::onSubsurfaceChanged);
 
-    QScreen *screen = QGuiApplication::primaryScreen();
-    auto *output = new QWaylandOutput(this, nullptr);
-    output->setAvailableGeometry(screen->availableGeometry());
-    output->setManufacturer(screen->manufacturer());
-    output->setModel(screen->model());
-    output->setPhysicalSize(screen->physicalSize().toSize());
-    QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
-    output->addMode(mode, true);
-    output->setCurrentMode(mode);
-    setDefaultOutput(output);
-
+    new QWaylandOutput(this, nullptr);
     QWaylandCompositor::create();
 }
 
@@ -319,14 +255,11 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
 
 Window *Compositor::createWindow(View *view)
 {
-    auto window = new Window(this);
-
+    auto *window = new Window(this);
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 
     QScreen *screen = window->screen();
-
-    output->setAvailableGeometry(screen->availableGeometry());
     output->setManufacturer(screen->manufacturer());
     output->setModel(screen->model());
     output->setPhysicalSize(screen->physicalSize().toSize());
@@ -337,27 +270,20 @@ Window *Compositor::createWindow(View *view)
     connect(output, &QWaylandOutput::geometryChanged,
             view, &View::onOutputGeometryChanged);
 
-    connect(window, &QWindow::heightChanged,
-            view, &View::onWindowSizeChanged);
-    connect(window, &QWindow::widthChanged,
-            view, &View::onWindowSizeChanged);
-
-    connect(screen, &QScreen::orientationChanged,
-            view, &View::onScreenOrientationChanged);
-    screen->setOrientationUpdateMask(Qt::LandscapeOrientation |
-                                     Qt::PortraitOrientation |
-                                     Qt::InvertedLandscapeOrientation |
-                                     Qt::InvertedPortraitOrientation);
-
-    if (QSysInfo::productType() == "sailfishos") {
-        window->showFullScreen();
-    } else {
-        window->resize(360, 640);
-        window->show();
-    }
-    view->updateMode();
-
     return window;
+}
+
+void Compositor::onOutputAdded(QWaylandOutput *output)
+{
+    QWindow *window = output->window();
+    if (window) {
+        if (QSysInfo::productType() == "sailfishos") {
+            window->showFullScreen();
+        } else {
+            window->resize(360, 640);
+            window->show();
+        }
+    }
 }
 
 Window *Compositor::ensureWindowForView(View *view)
