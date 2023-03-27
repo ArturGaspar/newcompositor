@@ -217,21 +217,25 @@ void Window::mousePressEvent(QMouseEvent *e)
 {
     if (m_mouseView.isNull()) {
         m_mouseView = viewAt(e->localPos());
-        /*
         if (!m_mouseView) {
             return;
         }
         QMouseEvent moveEvent(QEvent::MouseMove, e->localPos(), e->globalPos(),
                               Qt::NoButton, Qt::NoButton, e->modifiers());
-        sendMouseEvent(&moveEvent, m_mouseView);
-        */
+        mouseMoveEvent(&moveEvent);
     }
-    sendMouseEvent(e, m_mouseView);
+    QWaylandSeat *seat = m_compositor->seatFor(e);
+    seat->sendMousePressEvent(e->button());
+    QWaylandSurface *surface = m_mouseView->surface();
+    if (surface != seat->keyboardFocus() &&
+            m_compositor->surfaceIsFocusable(surface)) {
+        seat->setKeyboardFocus(surface);
+    }
 }
 
 void Window::mouseReleaseEvent(QMouseEvent *e)
 {
-    sendMouseEvent(e, m_mouseView);
+    m_compositor->seatFor(e)->sendMouseReleaseEvent(e->button());
     if (e->buttons() == Qt::NoButton) {
         m_mouseView = nullptr;
     }
@@ -241,25 +245,16 @@ void Window::mouseMoveEvent(QMouseEvent *e)
 {
     View *view;
     if (m_mouseView) {
-        view = m_mouseView.data();
+        view = m_mouseView;
     } else {
         view = viewAt(e->localPos());
     }
-    sendMouseEvent(e, view);
     if (!view) {
         setCursor(Qt::ArrowCursor);
+        return;
     }
-}
-
-void Window::sendMouseEvent(QMouseEvent *e, View *view)
-{
-    QPointF mappedPos = mapInputPoint(e->localPos());
-    if (view) {
-        mappedPos -= view->position();
-    }
-    QMouseEvent viewEvent(e->type(), mappedPos, e->localPos(), e->button(),
-                          e->buttons(), e->modifiers());
-    m_compositor->handleMouseEvent(view, &viewEvent);
+    QPointF mappedPos = mapInputPoint(e->localPos()) - view->position();
+    m_compositor->seatFor(e)->sendMouseMoveEvent(view, mappedPos);
 }
 
 void Window::keyPressEvent(QKeyEvent *e)

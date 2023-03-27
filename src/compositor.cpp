@@ -439,8 +439,7 @@ void Compositor::onXdgPopupCreated(QWaylandXdgPopup *popup,
     auto *parentView = qobject_cast<View *>(popup->parentXdgSurface()->surface()->primaryView());
     Q_ASSERT(parentView);
     view->setParentView(parentView);
-    view->setPosition(parentView->position() +
-                      QPoint(popup->anchorRect().x(), popup->anchorRect().y()) +
+    view->setPosition(parentView->position() + popup->anchorRect().topLeft() +
                       popup->offset());
     view->m_xdgPopup = popup;
 }
@@ -473,32 +472,5 @@ void Compositor::triggerRender(QWaylandSurface *surface)
     if (surface->primaryView() && surface->primaryView()->output() &&
             surface->primaryView()->output()->window()) {
         surface->primaryView()->output()->window()->requestUpdate();
-    }
-}
-
-void Compositor::handleMouseEvent(View *target, QMouseEvent *me)
-{
-    QWaylandSeat *seat = seatFor(me);
-    QWaylandSurface *surface;
-    if (target) {
-        surface = target->surface();
-    } else {
-        surface = nullptr;
-    }
-    switch (me->type()) {
-    case QEvent::MouseButtonPress:
-        seat->sendMousePressEvent(me->button());
-        if (surface != seat->keyboardFocus() && surfaceIsFocusable(surface)) {
-            seat->setKeyboardFocus(surface);
-        }
-        break;
-    case QEvent::MouseButtonRelease:
-         seat->sendMouseReleaseEvent(me->button());
-         break;
-    case QEvent::MouseMove:
-        seat->sendMouseMoveEvent(target, me->localPos(), me->globalPos());
-        break;
-    default:
-        break;
     }
 }

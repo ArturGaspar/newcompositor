@@ -125,8 +125,6 @@ public:
     ~Compositor() override;
     void create() override;
 
-    void handleMouseEvent(View *target, QMouseEvent *me);
-
 signals:
     void frameOffset(const QPoint &offset);
 
@@ -153,6 +151,7 @@ private slots:
     void onSubsurfacePositionChanged(const QPoint &position);
 
 private:
+    friend class Window;
     bool surfaceIsFocusable(QWaylandSurface *surface);
     Window *ensureWindowForView(View *view);
     Window *createWindow(View *view);
