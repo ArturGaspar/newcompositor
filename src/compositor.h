@@ -77,6 +77,9 @@ public:
     ~Compositor() override;
     void create() override;
 
+    Window *showAgainWindow() { return m_showAgainWindow; }
+    void setShowAgainWindow(Window *window) { m_showAgainWindow = window; }
+
     bool surfaceIsFocusable(QWaylandSurface *surface);
 
 signals:
@@ -87,6 +90,8 @@ private slots:
     void surfaceHasContentChanged();
     void surfaceDestroyed();
     void onSurfaceRedraw();
+
+    void onWindowDestroyed();
 
     void onOutputAdded(QWaylandOutput *output);
 
@@ -112,6 +117,7 @@ private:
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
+    Window *m_showAgainWindow = nullptr;
 };
 
 QT_END_NAMESPACE

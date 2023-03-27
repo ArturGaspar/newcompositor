@@ -63,6 +63,7 @@
 #include <QRectF>
 #include <QScreen>
 #include <QSet>
+#include <QTimer>
 #include <QTouchEvent>
 #include <QTransform>
 #include <QWaylandOutput>
@@ -243,12 +244,29 @@ bool Window::event(QEvent *e)
 {
     if (e->type() == QEvent::Close) {
         if (!m_views.empty()) {
-            m_views.first()->sendClose();
+            View *view = m_views.first();
+            view->sendClose();
             e->ignore();
+            m_compositor->setShowAgainWindow(this);
+            QTimer::singleShot(100, this, &Window::showAgain);
             return false;
         }
     }
     return QOpenGLWindow::event(e);
+}
+
+void Window::showAgain()
+{
+    // Make this window appear in the window list again, but if another window
+    // has been created since then, bring it to the front after showing this
+    // one.
+    hide();
+    show();
+    Window *showAgainWindow = m_compositor->showAgainWindow();
+    if (showAgainWindow && showAgainWindow != this) {
+        showAgainWindow->hide();
+        showAgainWindow->show();
+    }
 }
 
 void Window::resizeEvent(QResizeEvent *e)
@@ -280,7 +298,8 @@ View *Window::viewAt(const QPointF &point)
     return nullptr;
 }
 
-QPointF Window::mapInputPoint(const QPointF &point) const {
+QPointF Window::mapInputPoint(const QPointF &point) const
+{
     bool invertible;
     QTransform t = orientationTransform().inverted(&invertible);
     Q_ASSERT(invertible);

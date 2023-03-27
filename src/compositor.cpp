@@ -164,6 +164,9 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
 Window *Compositor::createWindow(View *view)
 {
     auto *window = new Window(this);
+    connect(window, &QObject::destroyed,
+            this, &Compositor::onWindowDestroyed);
+
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 
@@ -191,6 +194,15 @@ void Compositor::onOutputAdded(QWaylandOutput *output)
             window->resize(360, 640);
             window->show();
         }
+        m_showAgainWindow = qobject_cast<Window*>(window);
+    }
+}
+
+void Compositor::onWindowDestroyed()
+{
+    auto *window = qobject_cast<Window *>(sender());
+    if (m_showAgainWindow == window) {
+        m_showAgainWindow = nullptr;
     }
 }
 

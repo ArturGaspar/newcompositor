@@ -55,6 +55,7 @@
 #include <QOpenGLTexture>
 #include <QOpenGLTextureBlitter>
 #include <QPointer>
+#include <QTimer>
 #include <QVector>
 
 QT_BEGIN_NAMESPACE
@@ -102,6 +103,8 @@ private slots:
 
 private:
     void updateOutputMode();
+
+    void showAgain();
 
     View *viewAt(const QPointF &point);
     void sendMouseEvent(QMouseEvent *e, View *view);
