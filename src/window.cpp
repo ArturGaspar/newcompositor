@@ -274,7 +274,7 @@ void Window::keyReleaseEvent(QKeyEvent *e)
 
 void Window::touchEvent(QTouchEvent *e)
 {
-    bool touchClient = false;
+    bool hadTouchClient = false;
     QSet<QWaylandClient *> clients;
     QWaylandSeat *seat = m_compositor->seatFor(e);
     for (const QTouchEvent::TouchPoint &p : e->touchPoints()) {
@@ -286,10 +286,19 @@ void Window::touchEvent(QTouchEvent *e)
         if (p.state() == Qt::TouchPointReleased) {
             seat->setKeyboardFocus(view->surface());
         }
+        bool touchClient = false;
         // TODO: Look at how wlroots detects touch-able clients instead of
         //       whitelisting KDE clients.
+        // XXX: It is intentional we don't give touches to popups that don't
+        //      have the app id even though their ancestor does. That is weird
+        //      also on KDE apps.
         if (view->appId().startsWith("org.kde.")) {
             touchClient = true;
+        }
+        if (touchClient) {
+            hadTouchClient = true;
+        } else {
+            continue;
         }
         QPointF mappedPos = mapInputPoint(pos);
         mappedPos -= view->position();
@@ -300,7 +309,7 @@ void Window::touchEvent(QTouchEvent *e)
     for (QWaylandClient *client : clients) {
         seat->sendTouchFrameEvent(client);
     }
-    if (!touchClient) {
+    if (!hadTouchClient) {
         // Make Qt synthesise a mouse event for it.
         e->ignore();
     }

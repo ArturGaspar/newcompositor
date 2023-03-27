@@ -103,6 +103,7 @@ QOpenGLTextureBlitter::Origin View::textureOrigin() const
 void View::setParentView(View *parent) {
     Q_ASSERT(!m_parentView);
     Q_ASSERT(!output());
+    Q_ASSERT(parent != this);
     m_parentView = parent;
 }
 
@@ -310,8 +311,7 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
 {
     return (surface == nullptr ||
             (surface->role() == QWaylandWlShellSurface::role() ||
-             surface->role() == QWaylandXdgToplevel::role() ||
-             surface->role() == QWaylandXdgPopup::role()));
+             surface->role() == QWaylandXdgToplevel::role()));
 }
 
 Window *Compositor::createWindow(View *view)
