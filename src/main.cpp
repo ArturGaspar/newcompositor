@@ -54,6 +54,7 @@
 
 int main(int argc, char *argv[])
 {
+    QGuiApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QGuiApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
 
     QGuiApplication app(argc, argv);
