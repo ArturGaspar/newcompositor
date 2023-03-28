@@ -1,6 +1,6 @@
 Name:       newcompositor
 Summary:    Nesting Wayland compositor for Sailfish OS
-Version:    0.0.0a1
+Version:    0.0.1
 Release:    1
 License:    BSD
 URL:        https://github.com/ArturGaspar/newcompositor
