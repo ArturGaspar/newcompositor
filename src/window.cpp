@@ -77,12 +77,24 @@
 Window::Window(Compositor *compositor) :
     m_compositor(compositor)
 {
-    // TODO: handle screen changes.
-    connect(screen(), &QScreen::orientationChanged,
-            this, &Window::onScreenOrientationChanged);
-    screen()->setOrientationUpdateMask(Qt::LandscapeOrientation |
-                                       Qt::PortraitOrientation |
-                                       Qt::InvertedLandscapeOrientation);
+    onScreenChanged(screen());
+}
+
+void Window::onScreenChanged(QScreen *screen)
+{
+    if (m_previousScreen) {
+        disconnect(m_previousScreen.data(), &QScreen::orientationChanged,
+                   this, &Window::onScreenOrientationChanged);
+        m_previousScreen = nullptr;
+    }
+    if (screen) {
+        m_previousScreen = screen;
+        screen->setOrientationUpdateMask(Qt::LandscapeOrientation |
+                                         Qt::PortraitOrientation |
+                                         Qt::InvertedLandscapeOrientation);
+        connect(screen, &QScreen::orientationChanged,
+                this, &Window::onScreenOrientationChanged);
+    }
 }
 
 void Window::addView(View *view)

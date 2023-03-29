@@ -68,6 +68,7 @@ class QEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QResizeEvent;
+class QScreen;
 class QShowEvent;
 class QTouchEvent;
 
@@ -100,6 +101,7 @@ protected:
 
 private slots:
     void viewSurfaceDestroyed();
+    void onScreenChanged(QScreen *screen);
     void onScreenOrientationChanged(Qt::ScreenOrientation orientation);
 
 private:
@@ -118,6 +120,7 @@ private:
     QVector<View *> m_views;
     QPointer<View> m_mouseView;
 
+    QPointer<QScreen> m_previousScreen;
     int m_rotation = 0;
     QTransform m_transform;
     QTransform m_inverseTransform;
