@@ -117,19 +117,6 @@ void Window::resizeGL(int w, int h)
                                              QOpenGLTexture::DontGenerateMipMaps);
 }
 
-QTransform Window::orientationTransform() const
-{
-    QTransform t;
-    t.translate(width() / 2, height() / 2);
-    t.rotate(m_rotation);
-    if (m_rotation == Rotate90 || m_rotation == Rotate270) {
-        t.translate(-height() / 2, -width() / 2);
-    } else {
-        t.translate(-width() / 2, -height() / 2);
-    }
-    return t;
-}
-
 void Window::paintGL()
 {
     QWaylandOutput *output = m_compositor->outputFor(this);
@@ -152,8 +139,6 @@ void Window::paintGL()
                                                                  viewportRect),
                           QOpenGLTextureBlitter::OriginTopLeft);
 
-    QTransform t = orientationTransform();
-
     GLenum currentTarget = GL_TEXTURE_2D;
     for (View *view : qAsConst(m_views)) {
         QOpenGLTexture *texture = view->getTexture();
@@ -170,7 +155,8 @@ void Window::paintGL()
             if (destSize.isEmpty()) {
                 continue;
             }
-            QRectF targetRect = t.mapRect(QRectF(view->position(), destSize));
+            QRectF targetRect = m_transform.mapRect(QRectF(view->position(),
+                                                           destSize));
             QMatrix4x4 m = QOpenGLTextureBlitter::targetTransform(targetRect,
                                                                   viewportRect);
             m.rotate(-m_rotation, 0, 0, 1);
@@ -208,6 +194,8 @@ void Window::updateOutputMode()
     int rotation = 0;
     int refreshRate;
 
+    bool transposeSize = false;
+
     if (screen()) {
         Qt::ScreenOrientation outputSizeOrientation;
         switch (screen()->orientation()) {
@@ -224,6 +212,7 @@ void Window::updateOutputMode()
         }
         if (screen()->primaryOrientation() != outputSizeOrientation) {
             rotation += 90;
+            transposeSize = true;
             outputSize.transpose();
         }
         refreshRate = screen()->refreshRate() * 1000;
@@ -233,7 +222,19 @@ void Window::updateOutputMode()
 
     reportContentOrientationChange(screen()->orientation());
 
-    m_rotation = static_cast<Rotation>(rotation);
+    m_rotation = rotation;
+
+    m_transform = QTransform();
+    m_transform.translate(width() / 2, height() / 2);
+    m_transform.rotate(m_rotation);
+    if (transposeSize) {
+        m_transform.translate(-height() / 2, -width() / 2);
+    } else {
+        m_transform.translate(-width() / 2, -height() / 2);
+    }
+    bool invertible;
+    m_inverseTransform = m_transform.inverted(&invertible);
+    Q_ASSERT(invertible);
 
     QWaylandOutputMode mode(outputSize, refreshRate);
     output->addMode(mode, false);
@@ -300,10 +301,7 @@ View *Window::viewAt(const QPointF &point)
 
 QPointF Window::mapInputPoint(const QPointF &point) const
 {
-    bool invertible;
-    QTransform t = orientationTransform().inverted(&invertible);
-    Q_ASSERT(invertible);
-    return t.map(point);
+    return m_inverseTransform.map(point);
 }
 
 void Window::mousePressEvent(QMouseEvent *e)

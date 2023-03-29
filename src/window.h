@@ -56,6 +56,7 @@
 #include <QOpenGLTextureBlitter>
 #include <QPointer>
 #include <QTimer>
+#include <QTransform>
 #include <QVector>
 
 QT_BEGIN_NAMESPACE
@@ -109,7 +110,6 @@ private:
     View *viewAt(const QPointF &point);
     void sendMouseEvent(QMouseEvent *e, View *view);
 
-    QTransform orientationTransform() const;
     QPointF mapInputPoint(const QPointF &point) const;
 
     QOpenGLTextureBlitter m_textureBlitter;
@@ -118,13 +118,9 @@ private:
     QVector<View *> m_views;
     QPointer<View> m_mouseView;
 
-    enum Rotation {
-        Rotate0 = 0,
-        Rotate90 = 90,
-        Rotate180 = 180,
-        Rotate270 = 270
-    };
-    Rotation m_rotation = Rotate0;
+    int m_rotation = 0;
+    QTransform m_transform;
+    QTransform m_inverseTransform;
 };
 
 QT_END_NAMESPACE
