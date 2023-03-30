@@ -193,57 +193,37 @@ void Window::onScreenOrientationChanged(Qt::ScreenOrientation orientation)
 
 void Window::updateOutputMode()
 {
-    QSize outputSize = size();
-    if (outputSize.isEmpty()) {
-        return;
-    }
-
     QWaylandOutput *output = m_compositor->outputFor(this);
     if (!output) {
         return;
     }
 
-    int rotation = 0;
+    QSize outputSize = size();
+    if (outputSize.isEmpty()) {
+        return;
+    }
+
     int refreshRate;
-
-    bool transposeSize = false;
-
     if (screen()) {
-        Qt::ScreenOrientation outputSizeOrientation;
-        switch (screen()->orientation()) {
-        case Qt::InvertedPortraitOrientation:
-            outputSizeOrientation = Qt::PortraitOrientation;
-            rotation += 180;
-            break;
-        case Qt::InvertedLandscapeOrientation:
-            outputSizeOrientation = Qt::LandscapeOrientation;
-            rotation += 180;
-            break;
-        default:
-            outputSizeOrientation = screen()->orientation();
-        }
-        if (screen()->primaryOrientation() != outputSizeOrientation) {
-            rotation += 90;
-            transposeSize = true;
-            outputSize.transpose();
-        }
-        refreshRate = screen()->refreshRate() * 1000;
+         refreshRate = screen()->refreshRate() * 1000;
+         reportContentOrientationChange(screen()->orientation());
+         m_rotation = screen()->angleBetween(screen()->orientation(),
+                                             Qt::PrimaryOrientation);
+         m_transform = QTransform();
+         m_transform.translate(width() / 2, height() / 2);
+         m_transform.rotate(m_rotation);
+         if (m_rotation % 180 == 0) {
+             m_transform.translate(-width() / 2, -height() / 2);
+         } else {
+             m_transform.translate(-height() / 2, -width() / 2);
+             outputSize.transpose();
+         }
     } else {
         refreshRate = 60 * 1000;
+        m_rotation = 0;
+        m_transform = QTransform();
     }
 
-    reportContentOrientationChange(screen()->orientation());
-
-    m_rotation = rotation;
-
-    m_transform = QTransform();
-    m_transform.translate(width() / 2, height() / 2);
-    m_transform.rotate(m_rotation);
-    if (transposeSize) {
-        m_transform.translate(-height() / 2, -width() / 2);
-    } else {
-        m_transform.translate(-width() / 2, -height() / 2);
-    }
     bool invertible;
     m_inverseTransform = m_transform.inverted(&invertible);
     Q_ASSERT(invertible);
