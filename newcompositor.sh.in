@@ -1,3 +1,7 @@
 #!/bin/sh
 
-LD_PRELOAD="@@LIB@@/newcompositor/libnewcompositorhacks.so" newcompositor.bin "$@"
+set -eu
+
+export _LD_PRELOAD="${LD_PRELOAD:-}"
+export LD_PRELOAD="@@LIB@@/newcompositor/libnewcompositorhacks.so ${LD_PRELOAD:-}"
+exec newcompositor.bin "$@"

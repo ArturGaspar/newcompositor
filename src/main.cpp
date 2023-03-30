@@ -49,11 +49,19 @@
 ****************************************************************************/
 
 #include <QGuiApplication>
-#include "window.h"
+#include <QProcessEnvironment>
+
 #include "compositor.h"
 
 int main(int argc, char *argv[])
 {
+    // Restore original LD_PRELOAD for subprocesses if it was set
+    // by launcher script.
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    if (env.contains("_LD_PRELOAD")) {
+        env.insert("LD_PRELOAD", env.value("_LD_PRELOAD"));
+    }
+
     QGuiApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QGuiApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
 
