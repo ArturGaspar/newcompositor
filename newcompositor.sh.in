@@ -1,3 +1,3 @@
 #!/bin/sh
 
-LD_PRELOAD="$(dirname "$0")/../@@LIB@@/libnewcompositorhacks.so" "$(dirname "$0")/newcompositor.bin" "$@"
+LD_PRELOAD="@@LIB@@/newcompositor/libnewcompositorhacks.so" newcompositor.bin "$@"

@@ -6,6 +6,6 @@ SOURCES += hacks.cpp
 
 TARGET = newcompositorhacks
 
-target.path = /opt/newcompositor/lib
+target.path = /usr/lib/newcompositor
 
 INSTALLS += target

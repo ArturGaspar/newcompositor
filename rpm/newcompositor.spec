@@ -25,17 +25,17 @@ handle xdg_shell clients.
 %autosetup -n %{name}-%{version}
 
 %build
-sed -e 's|@@LIB@@|%{_lib}|g' newcompositor.sh.in > newcompositor
+sed -e 's|@@LIB@@|%{_libdir}|g' newcompositor.sh.in > newcompositor
 %{opt_qmake_qt5}
 %make_build
 
 %install
 rm -rf %{buildroot}
 %qmake5_install
-mv %{buildroot}/opt/newcompositor/lib %{buildroot}/opt/newcompositor/%{_lib}
+mkdir -p %{buildroot}/%{_libdir}
+mv %{buildroot}/usr/lib/newcompositor %{buildroot}/%{_libdir}/newcompositor
 
 %files
-%defattr(-,root,root,-)
-/opt/%{name}/bin/%{name}
-/opt/%{name}/bin/%{name}.bin
-/opt/%{name}/%{_lib}/libnewcompositorhacks.so
+%{_bindir}/%{name}
+%{_bindir}/%{name}.bin
+%{_libdir}/%{name}/libnewcompositorhacks.so

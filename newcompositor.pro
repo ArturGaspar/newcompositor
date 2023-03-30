@@ -8,6 +8,6 @@ OTHER_FILES += \
     newcompositor.sh.in \
     rpm/newcompositor.spec
 
-runner.path = /opt/newcompositor/bin
+runner.path = /usr/bin
 runner.files = newcompositor
 INSTALLS += runner

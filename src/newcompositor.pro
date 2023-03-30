@@ -16,6 +16,6 @@ SOURCES += main.cpp \
 
 TARGET = newcompositor.bin
 
-target.path = /opt/newcompositor/bin
+target.path = /usr/bin
 
 INSTALLS += target
