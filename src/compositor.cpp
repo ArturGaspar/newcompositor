@@ -164,9 +164,6 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
 Window *Compositor::createWindow(View *view)
 {
     auto *window = new Window(this);
-    connect(window, &QObject::destroyed,
-            this, &Compositor::onWindowDestroyed);
-
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 
@@ -198,12 +195,14 @@ void Compositor::onOutputAdded(QWaylandOutput *output)
     }
 }
 
-void Compositor::onWindowDestroyed()
+Window *Compositor::showAgainWindow()
 {
-    auto *window = qobject_cast<Window *>(sender());
-    if (m_showAgainWindow == window) {
-        m_showAgainWindow = nullptr;
-    }
+    return m_showAgainWindow.data();
+}
+
+void Compositor::setShowAgainWindow(Window *window)
+{
+    m_showAgainWindow = window;
 }
 
 Window *Compositor::ensureWindowForView(View *view)
@@ -216,6 +215,7 @@ Window *Compositor::ensureWindowForView(View *view)
     } else {
         if (view->parentView()) {
             window = ensureWindowForView(view->parentView());
+            // XXX: this fails if output was not added yet.
             view->setOutput(outputFor(window));
             window->addView(view);
         } else {

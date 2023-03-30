@@ -51,8 +51,9 @@
 #ifndef COMPOSITOR_H
 #define COMPOSITOR_H
 
-#include <QWaylandCompositor>
 #include <QPoint>
+#include <QPointer>
+#include <QWaylandCompositor>
 
 QT_BEGIN_NAMESPACE
 
@@ -77,8 +78,8 @@ public:
     ~Compositor() override;
     void create() override;
 
-    Window *showAgainWindow() { return m_showAgainWindow; }
-    void setShowAgainWindow(Window *window) { m_showAgainWindow = window; }
+    Window *showAgainWindow();
+    void setShowAgainWindow(Window *window);
 
     bool surfaceIsFocusable(QWaylandSurface *surface);
 
@@ -90,8 +91,6 @@ private slots:
     void surfaceHasContentChanged();
     void surfaceDestroyed();
     void onSurfaceRedraw();
-
-    void onWindowDestroyed();
 
     void onOutputAdded(QWaylandOutput *output);
 
@@ -117,7 +116,7 @@ private:
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
-    Window *m_showAgainWindow = nullptr;
+    QPointer<Window> m_showAgainWindow;
 };
 
 QT_END_NAMESPACE
