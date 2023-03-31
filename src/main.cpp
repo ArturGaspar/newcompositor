@@ -71,8 +71,5 @@ int main(int argc, char *argv[])
     Compositor compositor;
     compositor.create();
 
-    qInfo("Compositor running on WAYLAND_DISPLAY=%s",
-          compositor.socketName().constData());
-
     return app.exec();
 }

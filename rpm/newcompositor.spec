@@ -14,8 +14,10 @@ BuildRequires:  opt-qt5-qtbase-devel >= 5.15.8
 BuildRequires:  opt-qt5-qtdeclarative-devel >= 5.15.8
 BuildRequires:  opt-qt5-qtquickcontrols2-devel >= 5.15.8
 BuildRequires:  opt-qt5-qtwayland-devel >= 5.15.8
-BuildRequires:  pkgconfig(xkbcommon)
+BuildRequires:  pkgconfig(xcb)
+BuildRequires:  pkgconfig(xcb-composite)
 BuildRequires:  pkgconfig(wayland-server)
+%{?opt_qt5_default_filter}
 
 %description
 Nesting Wayland compositor for Sailfish OS that attempts to transparently
@@ -25,7 +27,7 @@ handle xdg_shell clients.
 %autosetup -n %{name}-%{version}
 
 %build
-sed -e 's|@@LIB@@|%{_libdir}|g' newcompositor.sh.in > newcompositor
+sed -e 's|@@LIB@@|%{_libdir}|g' %{name}.sh.in > %{name}
 %{opt_qmake_qt5}
 %make_build
 
@@ -33,7 +35,7 @@ sed -e 's|@@LIB@@|%{_libdir}|g' newcompositor.sh.in > newcompositor
 rm -rf %{buildroot}
 %qmake5_install
 mkdir -p %{buildroot}/%{_libdir}
-mv %{buildroot}/usr/lib/newcompositor %{buildroot}/%{_libdir}/newcompositor
+mv %{buildroot}/usr/lib/%{name} %{buildroot}/%{_libdir}/%{name}
 
 %files
 %{_bindir}/%{name}

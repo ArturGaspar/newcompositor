@@ -58,9 +58,12 @@
 #include <QWaylandXdgToplevel>
 
 #include "compositor.h"
+#include "window.h"
+#include "xwm.h"
 
-View::View(Compositor *compositor) :
-    m_compositor(compositor)
+View::View(Compositor *compositor, Xwm *xwm) :
+    m_compositor(compositor),
+    m_xwm(xwm)
 {
 }
 
@@ -93,12 +96,13 @@ QOpenGLTextureBlitter::Origin View::textureOrigin() const
 
 void View::onOutputGeometryChanged()
 {
+    const QSize size = output()->geometry().size();
     if (m_wlShellSurface) {
-        m_wlShellSurface->sendConfigure(output()->geometry().size(),
-                                        QWaylandWlShellSurface::NoneEdge);
-    }
-    if (m_xdgToplevel) {
-        m_xdgToplevel->sendMaximized(output()->geometry().size());
+        m_wlShellSurface->sendConfigure(size, QWaylandWlShellSurface::NoneEdge);
+    } else if (m_xdgToplevel) {
+        m_xdgToplevel->sendMaximized(size);
+    } else if (m_xwm->isX11Window(surface())) {
+        m_xwm->resizeWindow(surface(), size);
     }
 }
 
@@ -114,6 +118,8 @@ void View::sendClose()
         m_xdgToplevel->sendClose();
     } else if (m_xdgPopup) {
         m_xdgPopup->sendPopupDone();
+    } else if (m_xwm->isX11Window(surface())) {
+        m_xwm->closeWindow(surface());
     } else if (surface()) {
         m_compositor->destroyClientForSurface(surface());
     }
@@ -123,8 +129,7 @@ QString View::appId() const
 {
     if (m_xdgToplevel) {
         return m_xdgToplevel->appId();
-    }
-    if (m_wlShellSurface) {
+    } else if (m_wlShellSurface) {
         return m_wlShellSurface->className();
     }
     return QString();
@@ -134,8 +139,7 @@ QString View::title() const
 {
     if (m_xdgToplevel) {
         return m_xdgToplevel->title();
-    }
-    if (m_wlShellSurface) {
+    } else if (m_wlShellSurface) {
         return m_wlShellSurface->title();
     }
     return QString();

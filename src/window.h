@@ -61,9 +61,6 @@
 
 QT_BEGIN_NAMESPACE
 
-class Compositor;
-class View;
-
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
@@ -71,6 +68,9 @@ class QResizeEvent;
 class QScreen;
 class QShowEvent;
 class QTouchEvent;
+
+class Compositor;
+class View;
 
 class Window : public QOpenGLWindow
 {

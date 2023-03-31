@@ -307,13 +307,9 @@ void Window::mousePressEvent(QMouseEvent *e)
                               Qt::NoButton, Qt::NoButton, e->modifiers());
         mouseMoveEvent(&moveEvent);
     }
-    QWaylandSeat *seat = m_compositor->seatFor(e);
-    seat->sendMousePressEvent(e->button());
+    m_compositor->defaultSeat()->sendMousePressEvent(e->button());
     QWaylandSurface *surface = m_mouseView->surface();
-    if (surface != seat->keyboardFocus() &&
-            m_compositor->surfaceIsFocusable(surface)) {
-        seat->setKeyboardFocus(surface);
-    }
+    m_compositor->setFocus(surface);
 }
 
 void Window::mouseReleaseEvent(QMouseEvent *e)
@@ -354,15 +350,11 @@ void Window::touchEvent(QTouchEvent *e)
 {
     bool hadTouchClient = false;
     QSet<QWaylandClient *> clients;
-    QWaylandSeat *seat = m_compositor->seatFor(e);
     for (const QTouchEvent::TouchPoint &p : e->touchPoints()) {
         QPointF pos = p.pos();
         View *view = viewAt(pos);
         if (!view) {
             continue;
-        }
-        if (p.state() == Qt::TouchPointReleased) {
-            seat->setKeyboardFocus(view->surface());
         }
         bool touchClient = false;
         // TODO: Look at how wlroots detects touch-able clients instead of
@@ -375,17 +367,21 @@ void Window::touchEvent(QTouchEvent *e)
         }
         if (touchClient) {
             hadTouchClient = true;
+            if (p.state() == Qt::TouchPointReleased) {
+                m_compositor->setFocus(view->surface());
+            }
         } else {
             continue;
         }
         QPointF mappedPos = mapInputPoint(pos);
         mappedPos -= view->position();
-        seat->sendTouchPointEvent(view->surface(), p.id(), mappedPos,
-                                  p.state());
+        m_compositor->defaultSeat()->sendTouchPointEvent(view->surface(),
+                                                         p.id(), mappedPos,
+                                                         p.state());
         clients.insert(view->surface()->client());
     }
     for (QWaylandClient *client : clients) {
-        seat->sendTouchFrameEvent(client);
+        m_compositor->defaultSeat()->sendTouchFrameEvent(client);
     }
     if (!hadTouchClient) {
         // Make Qt synthesise a mouse event for it.

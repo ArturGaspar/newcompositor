@@ -69,6 +69,9 @@ class QWaylandXdgToplevel;
 
 class View;
 class Window;
+class Xwayland;
+class Xwm;
+class XwmWindow;
 
 class Compositor : public QWaylandCompositor
 {
@@ -82,6 +85,7 @@ public:
     void setShowAgainWindow(Window *window);
 
     bool surfaceIsFocusable(QWaylandSurface *surface);
+    void setFocus(QWaylandSurface *surface);
 
 signals:
     void frameOffset(const QPoint &offset);
@@ -89,7 +93,6 @@ signals:
 private slots:
     void triggerRender(QWaylandSurface *surface);
     void surfaceHasContentChanged();
-    void surfaceDestroyed();
     void onSurfaceRedraw();
 
     void onOutputAdded(QWaylandOutput *output);
@@ -113,10 +116,15 @@ private slots:
 private:
     Window *ensureWindowForView(View *view);
     Window *createWindow(View *view);
+
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
+
     QPointer<Window> m_showAgainWindow;
+
+    Xwayland *m_xwayland;
+    Xwm *m_xwm;
 };
 
 QT_END_NAMESPACE

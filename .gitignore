@@ -1,5 +1,7 @@
 # Main script after replacement
 newcompositor
+# Main binary
+newcompositor.bin
 
 # C++ objects and libs
 *.slo

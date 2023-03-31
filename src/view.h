@@ -67,12 +67,13 @@ class QWaylandXdgPopup;
 class QWaylandXdgToplevel;
 
 class Compositor;
+class Xwm;
 
 class View : public QWaylandView
 {
     Q_OBJECT
 public:
-    View(Compositor *compositor);
+    View(Compositor *compositor, Xwm *xwm);
     QOpenGLTexture *getTexture();
     QOpenGLTextureBlitter::Origin textureOrigin() const;
     QPointF position() const { return m_position; }
@@ -84,6 +85,7 @@ public:
 private:
     friend class Compositor;
     Compositor *m_compositor = nullptr;
+    Xwm *m_xwm = nullptr;
     GLenum m_textureTarget = GL_TEXTURE_2D;
     QOpenGLTexture *m_texture = nullptr;
     QOpenGLTextureBlitter::Origin m_origin;
