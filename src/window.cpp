@@ -109,7 +109,10 @@ void Window::viewSurfaceDestroyed()
     View *view = qobject_cast<View *>(sender());
     m_views.removeAll(view);
     if (m_views.empty()) {
-        delete this;
+        // XXX: we keep empty windows for reuse because deleting
+        //      them causes crashes.
+        hide();
+        emit empty();
     }
 }
 

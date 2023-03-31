@@ -80,6 +80,9 @@ public:
 
     void addView(View *view);
 
+signals:
+    void empty();
+
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;

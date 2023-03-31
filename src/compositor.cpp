@@ -180,9 +180,22 @@ bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
             m_xwm->isX11Window(surface));
 }
 
+void Compositor::onWindowEmpty()
+{
+    auto *window = qobject_cast<Window *>(sender());
+    m_freeWindows.append(window);
+}
+
 Window *Compositor::createWindow(View *view)
 {
-    auto *window = new Window(this);
+    Window *window;
+    if (m_freeWindows.isEmpty()) {
+        window = new Window(this);
+        connect(window, &Window::empty,
+                this, &Compositor::onWindowEmpty);
+    } else {
+        window = m_freeWindows.takeLast();
+    }
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 
