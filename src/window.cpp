@@ -165,7 +165,7 @@ void Window::paintGL()
             m_textureBlitter.bind(currentTarget);
         }
         QWaylandSurface *surface = view->surface();
-        if (surface && surface->hasContent()) {
+        if (surface && m_compositor->surfaceHasContent(surface)) {
             QSize destSize = surface->destinationSize();
             if (destSize.isEmpty()) {
                 continue;

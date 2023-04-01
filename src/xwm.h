@@ -30,6 +30,10 @@ public:
     void resizeWindow(QWaylandSurface *surface, const QSize &size);
     const QPoint windowPosition(QWaylandSurface *surface);
     QWaylandSurface *parentSurface(QWaylandSurface *surface);
+    bool windowIsUnmapped(QWaylandSurface *surface);
+
+signals:
+    void windowPositionChanged(QWaylandSurface *surface);
 
 private slots:
     void initialize();
@@ -38,9 +42,13 @@ private slots:
 
 private:
     xcb_atom_t internAtom(const QByteArray &name);
+    QWaylandSurface *findSurface(xcb_window_t window);
+    void setWindowPosition(xcb_window_t window, const QPoint &pos);
 
     void handleCreateNotify(xcb_generic_event_t *event);
     void handleDestroyNotify(xcb_generic_event_t *event);
+    void handleUnmapNotify(xcb_generic_event_t *event);
+    void handleMapNotify(xcb_generic_event_t *event);
     void handleConfigureNotify(xcb_generic_event_t *event);
     void handleConfigureRequest(xcb_generic_event_t *event);
     void handleMapRequest(xcb_generic_event_t *event);
@@ -58,6 +66,7 @@ private:
 
     QHash<xcb_window_t, QPoint> m_windowPositions;
     QHash<xcb_window_t, bool> m_windowOverrideRedirects;
+    QHash<xcb_window_t, bool> m_windowUnmapped;
 
     QHash<uint32_t, xcb_window_t> m_surfaceWindows;
 

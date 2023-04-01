@@ -111,6 +111,8 @@ void Compositor::create()
 
     qInfo("Compositor running on WAYLAND_DISPLAY=%s", socketName().constData());
 
+    connect(m_xwm, &Xwm::windowPositionChanged,
+            this, &Compositor::onXwmWindowPositionChanged);
     m_xwayland->start();
 }
 
@@ -129,6 +131,15 @@ void Compositor::onSurfaceCreated(QWaylandSurface *surface)
             view, &View::onOffsetForNextFrame);
     connect(surface, &QWaylandSurface::surfaceDestroyed,
             view, &QObject::deleteLater);
+}
+
+bool Compositor::surfaceHasContent(QWaylandSurface *surface)
+{
+    bool hasContent = surface->hasContent();
+    if (hasContent && m_xwm->isX11Window(surface)) {
+        hasContent = !m_xwm->windowIsUnmapped(surface);
+    }
+    return hasContent;
 }
 
 void Compositor::surfaceHasContentChanged()
@@ -245,7 +256,7 @@ Window *Compositor::ensureWindowForView(View *view)
         window = qobject_cast<Window *>(view->output()->window());
         Q_ASSERT(window);
     } else {
-        if (!view->parentView()) {
+        if (!view->parentView() && m_xwm->isX11Window(view->surface())) {
             QWaylandSurface *parentSurface = m_xwm->parentSurface(view->surface());
             if (parentSurface) {
                 auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
@@ -256,8 +267,9 @@ Window *Compositor::ensureWindowForView(View *view)
         }
         if (view->parentView()) {
             window = ensureWindowForView(view->parentView());
-            // XXX: this fails if output was not added yet.
-            view->setOutput(outputFor(window));
+            QWaylandOutput *output = outputFor(window);
+            Q_ASSERT(output);
+            view->setOutput(output);
             window->addView(view);
         } else {
             window = createWindow(view);
@@ -283,11 +295,9 @@ void Compositor::onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
                                               bool inactive)
 {
     Q_UNUSED(inactive);
-
     auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
     auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
     Q_ASSERT(view);
-
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
     Q_ASSERT(parentView);
     view->m_parentView = parentView;
@@ -299,11 +309,9 @@ void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
                                           const QPoint &relativeToParent)
 {
     Q_UNUSED(seat);
-
     auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
     auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
     Q_ASSERT(view);
-
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
     Q_ASSERT(parentView);
     view->m_parentView = parentView;
@@ -355,15 +363,18 @@ void Compositor::onSubsurfacePositionChanged(const QPoint &position)
     triggerRender(surface);
 }
 
-// TODO
-//void Compositor::onXwmWindowPositionChanged()
-//{
-//}
+void Compositor::onXwmWindowPositionChanged(QWaylandSurface *surface)
+{
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
+    view->m_position = m_xwm->windowPosition(view->surface());
+    triggerRender(surface);
+}
 
 void Compositor::triggerRender(QWaylandSurface *surface)
 {
-    if (surface->primaryView() && surface->primaryView()->output() &&
-            surface->primaryView()->output()->window()) {
+    if (surface->primaryView() && surface->primaryView()->output()) {
+        Q_ASSERT(surface->primaryView()->output()->window());
         surface->primaryView()->output()->window()->requestUpdate();
     }
 }

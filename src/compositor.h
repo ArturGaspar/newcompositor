@@ -84,6 +84,7 @@ public:
     Window *showAgainWindow();
     void setShowAgainWindow(Window *window);
 
+    bool surfaceHasContent(QWaylandSurface *surface);
     bool surfaceIsFocusable(QWaylandSurface *surface);
     void setFocus(QWaylandSurface *surface);
 
@@ -114,6 +115,8 @@ private slots:
 
     void onSubsurfaceChanged(QWaylandSurface *child, QWaylandSurface *parent);
     void onSubsurfacePositionChanged(const QPoint &position);
+
+    void onXwmWindowPositionChanged(QWaylandSurface *surface);
 
 private:
     Window *ensureWindowForView(View *view);
