@@ -34,8 +34,10 @@ sed -e 's|@@LIB@@|%{_libdir}|g' %{name}.sh.in > %{name}
 %install
 rm -rf %{buildroot}
 %qmake5_install
+%if "%{_libdir}" != "/usr/lib"
 mkdir -p %{buildroot}/%{_libdir}
 mv %{buildroot}/usr/lib/%{name} %{buildroot}/%{_libdir}/%{name}
+%endif
 
 %files
 %{_bindir}/%{name}
