@@ -51,6 +51,7 @@
 #include "compositor.h"
 
 #include <QDebug>
+#include <QGuiApplication>
 #include <QScreen>
 #include <QSysInfo>
 #include <QWaylandOutput>
@@ -106,7 +107,16 @@ void Compositor::create()
     connect(this, &QWaylandCompositor::subsurfaceChanged,
             this, &Compositor::onSubsurfaceChanged);
 
-    new QWaylandOutput(this, nullptr);
+    // Some clients, e.g. Xwayland in rootful mode, expect to know output
+    // size before they create any surfaces.
+    auto *output = new QWaylandOutput(this, nullptr);
+    QScreen *screen = qApp->primaryScreen();
+    output->setAvailableGeometry(screen->geometry());
+    QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
+    output->addMode(mode, true);
+    output->setCurrentMode(mode);
+    setDefaultOutput(output);
+
     QWaylandCompositor::create();
 
     qInfo("Compositor running on WAYLAND_DISPLAY=%s", socketName().constData());
@@ -234,7 +244,7 @@ void Compositor::onOutputAdded(QWaylandOutput *output)
             window->resize(360, 640);
             window->show();
         }
-        m_showAgainWindow = qobject_cast<Window*>(window);
+        m_showAgainWindow = qobject_cast<Window *>(window);
     }
 }
 
