@@ -90,15 +90,20 @@ public:
 
 signals:
     void frameOffset(const QPoint &offset);
+    void surfaceReady(QWaylandSurface *surface);
 
 private slots:
     void triggerRender(QWaylandSurface *surface);
-    void surfaceHasContentChanged();
-    void onSurfaceRedraw();
 
     void onOutputAdded(QWaylandOutput *output);
 
     void onSurfaceCreated(QWaylandSurface *surface);
+    void surfaceHasContentChanged();
+    void onSurfaceRedraw();
+    void onSubsurfacePositionChanged(const QPoint &position);
+
+    void onSubsurfaceChanged(QWaylandSurface *child, QWaylandSurface *parent);
+
     void onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface);
     void onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
                                       const QPoint &relativeToParent,
@@ -110,11 +115,9 @@ private slots:
                               QWaylandXdgSurface *xdgSurface);
     void onXdgPopupCreated(QWaylandXdgPopup *popup,
                            QWaylandXdgSurface *xdgSurface);
-
-    void onSubsurfaceChanged(QWaylandSurface *child, QWaylandSurface *parent);
-    void onSubsurfacePositionChanged(const QPoint &position);
-
-    void onXwmWindowPositionChanged(QWaylandSurface *surface);
+    void onXwmWindowCreated(XwmWindow *XwmWindow);
+    void onXwmWindowPositionChanged(QWaylandSurface *surface,
+                                    const QPoint &pos);
 
 private:
     Window *ensureWindowForView(View *view);

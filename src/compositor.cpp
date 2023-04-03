@@ -69,6 +69,7 @@
 #include "window.h"
 #include "xwayland.h"
 #include "xwm.h"
+#include "xwmwindow.h"
 
 Compositor::Compositor() :
     m_wlShell(new QWaylandWlShell(this)),
@@ -86,6 +87,14 @@ Compositor::~Compositor()
 
 void Compositor::create()
 {
+    connect(this, &QWaylandCompositor::outputAdded,
+            this, &Compositor::onOutputAdded);
+
+    connect(this, &QWaylandCompositor::surfaceCreated,
+            this, &Compositor::onSurfaceCreated);
+    connect(this, &QWaylandCompositor::subsurfaceChanged,
+            this, &Compositor::onSubsurfaceChanged);
+
     m_wlShell->initialize();
     connect(m_wlShell, &QWaylandWlShell::wlShellSurfaceCreated,
             this, &Compositor::onWlShellSurfaceCreated);
@@ -98,14 +107,6 @@ void Compositor::create()
 
     m_xdgDecorationManager->initialize();
     m_xdgDecorationManager->setPreferredMode(QWaylandXdgToplevel::ServerSideDecoration);
-
-    connect(this, &QWaylandCompositor::outputAdded,
-            this, &Compositor::onOutputAdded);
-
-    connect(this, &QWaylandCompositor::surfaceCreated,
-            this, &Compositor::onSurfaceCreated);
-    connect(this, &QWaylandCompositor::subsurfaceChanged,
-            this, &Compositor::onSubsurfaceChanged);
 
     // Some clients, e.g. Xwayland in rootful mode, expect to know output
     // size before they create any surfaces.
@@ -124,6 +125,8 @@ void Compositor::create()
 
     qInfo("Compositor running on WAYLAND_DISPLAY=%s", socketName().constData());
 
+    connect(m_xwm, &Xwm::xwmWindowCreated,
+            this, &Compositor::onXwmWindowCreated);
     connect(m_xwm, &Xwm::windowPositionChanged,
             this, &Compositor::onXwmWindowPositionChanged);
     m_xwayland->start();
@@ -131,26 +134,25 @@ void Compositor::create()
 
 void Compositor::onSurfaceCreated(QWaylandSurface *surface)
 {
+    new View(this, surface);
     connect(surface, &QWaylandSurface::hasContentChanged,
             this, &Compositor::surfaceHasContentChanged);
     connect(surface, &QWaylandSurface::redraw,
             this, &Compositor::onSurfaceRedraw);
     connect(surface, &QWaylandSurface::subsurfacePositionChanged,
             this, &Compositor::onSubsurfacePositionChanged);
-
-    View *view = new View(this, m_xwm);
-    view->setSurface(surface);
-    connect(surface, &QWaylandSurface::offsetForNextFrame,
-            view, &View::onOffsetForNextFrame);
-    connect(surface, &QWaylandSurface::surfaceDestroyed,
-            view, &QObject::deleteLater);
+    emit surfaceReady(surface);
 }
 
 bool Compositor::surfaceHasContent(QWaylandSurface *surface)
 {
     bool hasContent = surface->hasContent();
-    if (hasContent && m_xwm->isX11Window(surface)) {
-        hasContent = !m_xwm->windowIsUnmapped(surface);
+    if (hasContent) {
+        auto *view = qobject_cast<View *>(surface->primaryView());
+        Q_ASSERT(view);
+        if (view->m_xwmWindow) {
+            hasContent = !view->m_xwmWindow->isUnmapped();
+        }
     }
     return hasContent;
 }
@@ -158,25 +160,51 @@ bool Compositor::surfaceHasContent(QWaylandSurface *surface)
 void Compositor::surfaceHasContentChanged()
 {
     auto *surface = qobject_cast<QWaylandSurface *>(sender());
-    if (!surface->role() && !m_xwm->isX11Window(surface)) {
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    if (!view) {
         return;
     }
-    if (surface->primaryView()) {
-        if (surface->hasContent() && !surface->isCursorSurface()) {
-            if (surfaceIsFocusable(surface)) {
-                defaultSeat()->setKeyboardFocus(surface);
-            }
-            auto *view = qobject_cast<View *>(surface->primaryView());
-            ensureWindowForView(view);
-        }
-        triggerRender(surface);
+    if (!surface->role() && !view->m_xwmWindow) {
+        return;
     }
+    if (surface->hasContent() && !surface->isCursorSurface()) {
+        if (surfaceIsFocusable(surface)) {
+            defaultSeat()->setKeyboardFocus(surface);
+        }
+        auto *view = qobject_cast<View *>(surface->primaryView());
+        Q_ASSERT(view);
+        ensureWindowForView(view);
+    }
+    triggerRender(surface);
 }
 
 void Compositor::onSurfaceRedraw()
 {
     auto *surface = qobject_cast<QWaylandSurface *>(sender());
     triggerRender(surface);
+}
+
+void Compositor::onSubsurfacePositionChanged(const QPoint &position)
+{
+    auto *surface = qobject_cast<QWaylandSurface *>(sender());
+    if (!surface) {
+        return;
+    }
+    Q_ASSERT(surface->primaryView());
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
+    view->m_position = position;
+    triggerRender(surface);
+}
+
+void Compositor::onSubsurfaceChanged(QWaylandSurface *child,
+                                     QWaylandSurface *parent)
+{
+    auto *view = qobject_cast<View *>(child->primaryView());
+    Q_ASSERT(view);
+    auto *parentView = qobject_cast<View *>(parent->primaryView());
+    Q_ASSERT(parentView);
+    view->m_parentView = parentView;
 }
 
 void Compositor::setFocus(QWaylandSurface *surface)
@@ -191,17 +219,24 @@ void Compositor::setFocus(QWaylandSurface *surface)
     }
     defaultSeat()->setMouseFocus(surface->primaryView());
     defaultSeat()->setKeyboardFocus(surface);
-    if (m_xwm->isX11Window(surface)) {
-        m_xwm->raiseWindow(surface);
+
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
+    if (view->m_xwmWindow) {
+        view->m_xwmWindow->raise();
     }
 }
 
 bool Compositor::surfaceIsFocusable(QWaylandSurface *surface)
 {
-    return (surface == nullptr ||
-            surface->role() == QWaylandWlShellSurface::role() ||
+    if (surface == nullptr) {
+        return true;
+    }
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
+    return (surface->role() == QWaylandWlShellSurface::role() ||
             surface->role() == QWaylandXdgToplevel::role() ||
-            m_xwm->isX11Window(surface));
+            view->m_xwmWindow);
 }
 
 Window *Compositor::createWindow(View *view)
@@ -256,17 +291,17 @@ Window *Compositor::ensureWindowForView(View *view)
         window = qobject_cast<Window *>(view->output()->window());
         Q_ASSERT(window);
     } else {
-        if (!view->parentView() && m_xwm->isX11Window(view->surface())) {
-            QWaylandSurface *parentSurface = m_xwm->parentSurface(view->surface());
+        if (!view->m_parentView && view->m_xwmWindow) {
+            QWaylandSurface *parentSurface = view->m_xwmWindow->parentSurface();
             if (parentSurface) {
                 auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
                 Q_ASSERT(parentView);
                 view->m_parentView = parentView;
-                view->m_position = m_xwm->windowPosition(view->surface());
+                view->m_position = view->m_xwmWindow->position();
             }
         }
-        if (view->parentView()) {
-            window = ensureWindowForView(view->parentView());
+        if (view->m_parentView) {
+            window = ensureWindowForView(view->m_parentView);
             QWaylandOutput *output = outputFor(window);
             Q_ASSERT(output);
             view->setOutput(output);
@@ -284,7 +319,6 @@ void Compositor::onWlShellSurfaceCreated(QWaylandWlShellSurface *wlShellSurface)
             this, &Compositor::onWlShellSurfaceSetTransient);
     connect(wlShellSurface, &QWaylandWlShellSurface::setPopup,
             this, &Compositor::onWlShellSurfaceSetPopup);
-
     auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
     Q_ASSERT(view);
     view->m_wlShellSurface = wlShellSurface;
@@ -295,7 +329,7 @@ void Compositor::onWlShellSurfaceSetTransient(QWaylandSurface *parentSurface,
                                               bool inactive)
 {
     Q_UNUSED(inactive);
-    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
+    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface *>(sender());
     auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
     Q_ASSERT(view);
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
@@ -309,7 +343,7 @@ void Compositor::onWlShellSurfaceSetPopup(QWaylandSeat *seat,
                                           const QPoint &relativeToParent)
 {
     Q_UNUSED(seat);
-    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface*>(sender());
+    auto *wlShellSurface = qobject_cast<QWaylandWlShellSurface *>(sender());
     auto *view = qobject_cast<View *>(wlShellSurface->surface()->primaryView());
     Q_ASSERT(view);
     auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
@@ -340,35 +374,22 @@ void Compositor::onXdgPopupCreated(QWaylandXdgPopup *popup,
     view->m_xdgPopup = popup;
 }
 
-void Compositor::onSubsurfaceChanged(QWaylandSurface *child,
-                                     QWaylandSurface *parent)
+void Compositor::onXwmWindowCreated(XwmWindow *xwmWindow)
 {
-    auto *view = qobject_cast<View *>(child->primaryView());
+    auto *view = qobject_cast<View *>(xwmWindow->surface()->primaryView());
     Q_ASSERT(view);
-    auto *parentView = qobject_cast<View *>(parent->primaryView());
-    Q_ASSERT(parentView);
-    view->m_parentView = parentView;
+    view->m_xwmWindow = xwmWindow;
 }
 
-void Compositor::onSubsurfacePositionChanged(const QPoint &position)
+void Compositor::onXwmWindowPositionChanged(QWaylandSurface *surface,
+                                            const QPoint &pos)
 {
-    auto *surface = qobject_cast<QWaylandSurface *>(sender());
-    if (!surface) {
-        return;
+    auto *view = qobject_cast<View *>(surface->primaryView());
+    Q_ASSERT(view);
+    if (view->m_parentView) {
+        view->m_position = pos;
+        triggerRender(surface);
     }
-    Q_ASSERT(surface->primaryView());
-    auto *view = qobject_cast<View *>(surface->primaryView());
-    Q_ASSERT(view);
-    view->m_position = position;
-    triggerRender(surface);
-}
-
-void Compositor::onXwmWindowPositionChanged(QWaylandSurface *surface)
-{
-    auto *view = qobject_cast<View *>(surface->primaryView());
-    Q_ASSERT(view);
-    view->m_position = m_xwm->windowPosition(view->surface());
-    triggerRender(surface);
 }
 
 void Compositor::triggerRender(QWaylandSurface *surface)

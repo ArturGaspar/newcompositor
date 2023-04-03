@@ -62,41 +62,42 @@ QT_BEGIN_NAMESPACE
 
 class QOpenGLTexture;
 class QWaylandOutput;
+class QWaylandSurface;
 class QWaylandWlShellSurface;
 class QWaylandXdgPopup;
 class QWaylandXdgToplevel;
 
 class Compositor;
-class Xwm;
+class XwmWindow;
 
 class View : public QWaylandView
 {
     Q_OBJECT
 public:
-    View(Compositor *compositor, Xwm *xwm);
+    View(Compositor *compositor, QWaylandSurface *surface);
     ~View();
     QOpenGLTexture *getTexture();
     QOpenGLTextureBlitter::Origin textureOrigin() const;
     QPointF position() const { return m_position; }
-    View *parentView() const { return m_parentView; }
     QPoint offset() const { return m_offset; }
     QString appId() const;
     QString title() const;
 
 private:
     friend class Compositor;
-    Compositor *m_compositor = nullptr;
-    Xwm *m_xwm = nullptr;
+    Compositor *m_compositor;
     GLenum m_textureTarget = GL_TEXTURE_2D;
     QOpenGLTexture *m_texture = nullptr;
     QOpenGLTexture *m_shmTexture = nullptr;
     QOpenGLTextureBlitter::Origin m_origin;
     QPointF m_position;
+    View *m_parentView = nullptr;
+    QPoint m_offset;
+
     QWaylandWlShellSurface *m_wlShellSurface = nullptr;
     QWaylandXdgToplevel *m_xdgToplevel = nullptr;
     QWaylandXdgPopup *m_xdgPopup = nullptr;
-    View *m_parentView = nullptr;
-    QPoint m_offset;
+    XwmWindow *m_xwmWindow = nullptr;
 
 public slots:
     void onOffsetForNextFrame(const QPoint &offset);

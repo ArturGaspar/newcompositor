@@ -294,7 +294,7 @@ void Window::showEvent(QShowEvent *e)
     QOpenGLWindow::showEvent(e);
 }
 
-View *Window::viewAt(const QPointF &point)
+View *Window::viewAt(const QPointF &point) const
 {
     const QPointF mappedPoint = mapInputPoint(point);
     const QVector<View *> views = m_views;

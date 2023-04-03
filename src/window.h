@@ -111,7 +111,7 @@ private:
 
     void showAgain();
 
-    View *viewAt(const QPointF &point);
+    View *viewAt(const QPointF &point) const;
     void sendMouseEvent(QMouseEvent *e, View *view);
 
     QPointF mapInputPoint(const QPointF &point) const;
@@ -120,7 +120,7 @@ private:
 
     QOpenGLTextureBlitter m_textureBlitter;
     QOpenGLTexture *m_backgroundTexture;
-    Compositor *m_compositor = nullptr;
+    Compositor *m_compositor;
     QVector<View *> m_views;
     QPointer<View> m_mouseView;
 

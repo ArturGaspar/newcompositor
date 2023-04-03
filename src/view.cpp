@@ -60,12 +60,16 @@
 
 #include "compositor.h"
 #include "window.h"
-#include "xwm.h"
+#include "xwmwindow.h"
 
-View::View(Compositor *compositor, Xwm *xwm) :
-    m_compositor(compositor),
-    m_xwm(xwm)
+View::View(Compositor *compositor, QWaylandSurface *surface) :
+    m_compositor(compositor)
 {
+    setSurface(surface);
+    connect(surface, &QWaylandSurface::offsetForNextFrame,
+            this, &View::onOffsetForNextFrame);
+    connect(surface, &QWaylandSurface::surfaceDestroyed,
+            this, &QObject::deleteLater);
 }
 
 View::~View()
@@ -125,8 +129,8 @@ void View::onOutputGeometryChanged()
         m_wlShellSurface->sendConfigure(size, QWaylandWlShellSurface::NoneEdge);
     } else if (m_xdgToplevel) {
         m_xdgToplevel->sendMaximized(size);
-    } else if (m_xwm->isX11Window(surface())) {
-        m_xwm->resizeWindow(surface(), size);
+    } else if (m_xwmWindow) {
+        m_xwmWindow->resize(size);
     }
 }
 
@@ -142,8 +146,8 @@ void View::sendClose()
         m_xdgToplevel->sendClose();
     } else if (m_xdgPopup) {
         m_xdgPopup->sendPopupDone();
-    } else if (m_xwm->isX11Window(surface())) {
-        m_xwm->closeWindow(surface());
+    } else if (m_xwmWindow) {
+        m_xwmWindow->sendClose();
     } else if (surface()) {
         m_compositor->destroyClientForSurface(surface());
     }
@@ -155,6 +159,8 @@ QString View::appId() const
         return m_xdgToplevel->appId();
     } else if (m_wlShellSurface) {
         return m_wlShellSurface->className();
+    } else if (m_xwmWindow) {
+        return m_xwmWindow->className();
     }
     return QString();
 }
@@ -165,6 +171,8 @@ QString View::title() const
         return m_xdgToplevel->title();
     } else if (m_wlShellSurface) {
         return m_wlShellSurface->title();
+    } else if (m_xwmWindow) {
+        return m_xwmWindow->title();
     }
     return QString();
 }

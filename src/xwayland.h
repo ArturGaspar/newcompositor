@@ -17,7 +17,7 @@ public:
     Xwayland(QWaylandCompositor *compositor);
     ~Xwayland();
     void start();
-    const QByteArray displayName() const { return m_displayName; }
+    QByteArray displayName() const { return m_displayName; }
     int wmFd() const { return m_wmFd; }
 
 signals:

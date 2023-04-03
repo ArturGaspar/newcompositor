@@ -5,14 +5,16 @@ HEADERS += \
     view.h \
     window.h \
     xwayland.h \
-    xwm.h
+    xwm.h \
+    xwmwindow.h
 
 SOURCES += main.cpp \
     compositor.cpp \
     view.cpp \
     window.cpp \
     xwayland.cpp \
-    xwm.cpp
+    xwm.cpp \
+    xwmwindow.cpp
 
 TARGET = newcompositor.bin
 

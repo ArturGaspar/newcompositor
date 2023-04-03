@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QPoint>
 #include <QSocketNotifier>
+#include <QWaylandSurface>
 #include <QWaylandView>
 #include <stdlib.h>
 #include <xcb/composite.h>
@@ -12,12 +13,15 @@
 
 #include "compositor.h"
 #include "xwayland.h"
+#include "xwmwindow.h"
 
 Xwm::Xwm(Compositor *compositor, Xwayland *xwayland)
     : QObject(compositor),
       m_compositor(compositor),
       m_xwayland(xwayland)
 {
+    connect(m_compositor, &Compositor::surfaceReady,
+            this, &Xwm::onSurfaceReady);
     connect(m_compositor, &QWaylandCompositor::surfaceAboutToBeDestroyed,
             this, &Xwm::onSurfaceAboutToBeDestroyed);
     connect(m_xwayland, &Xwayland::displayReady,
@@ -62,6 +66,14 @@ void Xwm::initialize() {
     ::xcb_flush(m_conn);
 }
 
+void Xwm::syncWindowProperties(xcb_window_t window)
+{
+    const xcb_atom_t props[] = {XCB_ATOM_WM_TRANSIENT_FOR, m_atom_wmProtocols};
+    for (xcb_atom_t prop : props) {
+        readWindowProperty(window, prop);
+    }
+}
+
 xcb_atom_t Xwm::internAtom(const QByteArray &name)
 {
     xcb_intern_atom_cookie_t cookie = ::xcb_intern_atom(m_conn, 0, strlen(name),
@@ -73,7 +85,7 @@ xcb_atom_t Xwm::internAtom(const QByteArray &name)
     return atom;
 }
 
-QWaylandSurface *Xwm::findSurface(xcb_window_t window)
+QWaylandSurface *Xwm::findSurface(xcb_window_t window) const
 {
     const QList<QWaylandSurface *> surfaces = m_compositor->surfaces();
     for (QWaylandSurface *surface : surfaces) {
@@ -83,6 +95,40 @@ QWaylandSurface *Xwm::findSurface(xcb_window_t window)
         }
     }
     return nullptr;
+}
+
+void Xwm::setWindowPosition(xcb_window_t window, const QPoint &pos)
+{
+    m_windowPositions[window] = pos;
+    QWaylandSurface *surface = findSurface(window);
+    if (surface) {
+        emit windowPositionChanged(surface, pos);
+    }
+}
+
+void Xwm::setWindowOverrideRedirect(xcb_window_t window, bool overrideRedirect)
+{
+    m_windowOverrideRedirects[window] = overrideRedirect;
+}
+
+void Xwm::createXwmWindow(QWaylandSurface *surface, xcb_window_t window)
+{
+    auto *xwmWindow = new XwmWindow(this, surface, window);
+    emit xwmWindowCreated(xwmWindow);
+}
+
+void Xwm::onSurfaceReady(QWaylandSurface *surface)
+{
+    uint32_t surfaceId = surface->resource()->object.id;
+    if (m_surfaceWindows.contains(surfaceId)) {
+        createXwmWindow(surface, m_surfaceWindows[surfaceId]);
+    }
+}
+
+void Xwm::onSurfaceAboutToBeDestroyed(QWaylandSurface *surface)
+{
+    uint32_t surfaceId = surface->resource()->object.id;
+    m_surfaceWindows.remove(surfaceId);
 }
 
 void Xwm::processEvents()
@@ -113,6 +159,9 @@ void Xwm::processEvents()
         case XCB_CONFIGURE_REQUEST:
             handleConfigureRequest(event);
             break;
+        case XCB_PROPERTY_NOTIFY:
+            handlePropertyNotify(event);
+            break;
         case XCB_CLIENT_MESSAGE:
             handleClientMessage(event);
             break;
@@ -129,25 +178,24 @@ void Xwm::processEvents()
     }
 }
 
-void Xwm::onSurfaceAboutToBeDestroyed(QWaylandSurface *surface)
-{
-    uint32_t surfaceId = surface->resource()->object.id;
-    m_surfaceWindows.remove(surfaceId);
-}
-
 void Xwm::handleCreateNotify(xcb_generic_event_t *event)
 {
     auto notify = reinterpret_cast<xcb_create_notify_event_t *>(event);
-    m_windowOverrideRedirects[notify->window] = notify->override_redirect;
+    setWindowOverrideRedirect(notify->window, notify->override_redirect);
+    const static uint32_t values[] = {XCB_EVENT_MASK_PROPERTY_CHANGE};
+    ::xcb_change_window_attributes(m_conn, notify->window,
+                                   XCB_CW_EVENT_MASK, values);
+    ::xcb_flush(m_conn);
+    syncWindowProperties(notify->window);
 }
 
 void Xwm::handleDestroyNotify(xcb_generic_event_t *event)
 {
     auto notify = reinterpret_cast<xcb_destroy_notify_event_t *>(event);
     xcb_window_t window = notify->window;
-    m_windowOverrideRedirects.remove(window);
-    m_windowPositions.remove(window);
     m_windowUnmapped.remove(window);
+    m_windowOverrideRedirects.remove(window);
+    m_windowProperties.remove(window);
 }
 
 void Xwm::handleMapRequest(xcb_generic_event_t *event)
@@ -161,6 +209,10 @@ void Xwm::handleUnmapNotify(xcb_generic_event_t *event)
     auto notify = reinterpret_cast<xcb_unmap_notify_event_t *>(event);
     xcb_window_t window = notify->window;
     m_windowUnmapped[window] = true;
+    QWaylandSurface *surface = findSurface(window);
+    if (surface) {
+        emit surface->hasContentChanged();
+    }
 }
 
 void Xwm::handleMapNotify(xcb_generic_event_t *event)
@@ -168,11 +220,13 @@ void Xwm::handleMapNotify(xcb_generic_event_t *event)
     auto notify = reinterpret_cast<xcb_map_notify_event_t *>(event);
     xcb_window_t window = notify->window;
     m_windowUnmapped[window] = false;
+    setWindowOverrideRedirect(notify->window, notify->override_redirect);
 }
 
 void Xwm::handleConfigureNotify(xcb_generic_event_t *event)
 {
     auto notify = reinterpret_cast<xcb_configure_notify_event_t *>(event);
+    setWindowOverrideRedirect(notify->window, notify->override_redirect);
     setWindowPosition(notify->window, QPoint(notify->x, notify->y));
 }
 
@@ -182,13 +236,10 @@ void Xwm::handleConfigureRequest(xcb_generic_event_t *event)
     setWindowPosition(request->window, QPoint(request->x, request->y));
 }
 
-void Xwm::setWindowPosition(xcb_window_t window, const QPoint &pos)
+void Xwm::handlePropertyNotify(xcb_generic_event_t *event)
 {
-    m_windowPositions[window] = pos;
-    QWaylandSurface *surface = findSurface(window);
-    if (surface) {
-        emit windowPositionChanged(surface);
-    }
+    auto notify = reinterpret_cast<xcb_property_notify_event_t *>(event);
+    readWindowProperty(notify->window, notify->atom);
 }
 
 void Xwm::handleClientMessage(xcb_generic_event_t *event)
@@ -198,6 +249,11 @@ void Xwm::handleClientMessage(xcb_generic_event_t *event)
         xcb_window_t window = message->window;
         uint32_t surfaceId = message->data.data32[0];
         m_surfaceWindows[surfaceId] = window;
+        QWaylandSurface *surface = findSurface(window);
+        // Surface may have been destroyed or may not exist yet.
+        if (surface) {
+            createXwmWindow(surface, window);
+        }
     }
 }
 
@@ -211,57 +267,43 @@ xcb_get_property_reply_t *Xwm::getWindowProperty(xcb_window_t window,
     return ::xcb_get_property_reply(m_conn, cookie, NULL);
 }
 
-QVector<xcb_atom_t> Xwm::readWindowProtocols(xcb_window_t window)
+void Xwm::readWindowProperty(xcb_window_t window, xcb_atom_t property)
 {
-    xcb_get_property_reply_t *reply = getWindowProperty(window,
-                                                        m_atom_wmProtocols);
-
-    QVector<xcb_atom_t> protocols;
+    xcb_get_property_reply_t *reply = getWindowProperty(window, property);
     if (reply == nullptr) {
-        return protocols;
-    }
-
-    auto *atoms = reinterpret_cast<xcb_atom_t *>(::xcb_get_property_value(reply));
-    for (uint32_t i = 0; i < reply->value_len; i++) {
-        protocols.append(atoms[i]);
-        atoms++;
-    }
-
-    ::free(reply);
-
-    return protocols;
-}
-
-xcb_window_t Xwm::readWindowTransientFor(xcb_window_t window)
-{
-    xcb_get_property_reply_t *reply = getWindowProperty(window,
-                                                        XCB_ATOM_WM_TRANSIENT_FOR);
-    if (reply == nullptr) {
-        return 0;
-    }
-    if (reply->type != XCB_ATOM_WINDOW) {
-        return 0;
-    }
-    auto parent = *reinterpret_cast<xcb_window_t *>(::xcb_get_property_value(reply));
-    ::free(reply);
-    return parent;
-}
-
-bool Xwm::isX11Window(QWaylandSurface *surface)
-{
-    uint32_t surfaceId = surface->resource()->object.id;
-    return m_surfaceWindows.contains(surfaceId);
-}
-
-void Xwm::closeWindow(QWaylandSurface *surface)
-{
-    uint32_t surfaceId = surface->resource()->object.id;
-    if (!m_surfaceWindows.contains(surfaceId)) {
         return;
     }
-    const xcb_window_t window = m_surfaceWindows[surfaceId];
+    if (property == XCB_ATOM_WM_TRANSIENT_FOR) {
+        readWindowTransientFor(window, reply);
+    } else if (property == m_atom_wmProtocols) {
+        readWindowProtocols(window, reply);
+    }
+    ::free(reply);
+}
+
+void Xwm::readWindowTransientFor(xcb_window_t window,
+                                 xcb_get_property_reply_t *reply)
+{
+    if (reply->type != XCB_ATOM_WINDOW) {
+        return;
+    }
+    m_windowProperties[window].transientFor = *reinterpret_cast<xcb_window_t *>(::xcb_get_property_value(reply));
+}
+
+void Xwm::readWindowProtocols(xcb_window_t window,
+                              xcb_get_property_reply_t *reply)
+{
+    m_windowProperties[window].protocols.clear();
+    auto *atoms = reinterpret_cast<xcb_atom_t *>(::xcb_get_property_value(reply));
+    for (uint32_t i = 0; i < reply->value_len; i++) {
+        m_windowProperties[window].protocols.append(atoms[i]);
+    }
+}
+
+void Xwm::closeWindow(xcb_window_t window)
+{
     bool supportsDelete = false;
-    const QVector<xcb_atom_t> protocols = readWindowProtocols(window);
+    const QVector<xcb_atom_t> protocols = m_windowProperties[window].protocols;
     for (xcb_atom_t protocol : protocols) {
         if (protocol == m_atom_wmDeleteWindow) {
             supportsDelete = true;
@@ -288,26 +330,16 @@ void Xwm::closeWindow(QWaylandSurface *surface)
     ::xcb_flush(m_conn);
 }
 
-void Xwm::raiseWindow(QWaylandSurface *surface)
+void Xwm::raiseWindow(xcb_window_t window)
 {
-    uint32_t surfaceId = surface->resource()->object.id;
-    if (!m_surfaceWindows.contains(surfaceId)) {
-        return;
-    }
-    const xcb_window_t window = m_surfaceWindows[surfaceId];
     uint16_t mask = XCB_CONFIG_WINDOW_STACK_MODE;
     uint32_t values[] = {XCB_STACK_MODE_ABOVE};
     ::xcb_configure_window(m_conn, window, mask, values);
     ::xcb_flush(m_conn);
 }
 
-void Xwm::resizeWindow(QWaylandSurface *surface, const QSize &size)
+void Xwm::resizeWindow(xcb_window_t window, const QSize &size)
 {
-    uint32_t surfaceId = surface->resource()->object.id;
-    if (!m_surfaceWindows.contains(surfaceId)) {
-        return;
-    }
-    const xcb_window_t window = m_surfaceWindows[surfaceId];
     uint16_t mask = (XCB_CONFIG_WINDOW_WIDTH |
                      XCB_CONFIG_WINDOW_HEIGHT);
     uint32_t values[] = {(uint32_t) size.width(), (uint32_t) size.height()};
@@ -315,13 +347,8 @@ void Xwm::resizeWindow(QWaylandSurface *surface, const QSize &size)
     ::xcb_flush(m_conn);
 }
 
-const QPoint Xwm::windowPosition(QWaylandSurface *surface)
+QPoint Xwm::windowPosition(xcb_window_t window) const
 {
-    uint32_t surfaceId = surface->resource()->object.id;
-    if (!m_surfaceWindows.contains(surfaceId)) {
-        return QPoint();
-    }
-    const xcb_window_t window = m_surfaceWindows[surfaceId];
     return m_windowPositions[window];
 }
 
@@ -335,20 +362,16 @@ QWaylandSurface *Xwm::parentSurface(QWaylandSurface *surface)
     if (!m_windowOverrideRedirects[window]) {
         return nullptr;
     }
-    const xcb_window_t transientFor = readWindowTransientFor(window);
+    readWindowProperty(window, XCB_ATOM_WM_TRANSIENT_FOR);
+    const xcb_window_t transientFor = m_windowProperties[window].transientFor;
     if (!transientFor) {
         return nullptr;
     }
     return findSurface(transientFor);
 }
 
-bool Xwm::windowIsUnmapped(QWaylandSurface *surface)
+bool Xwm::windowIsUnmapped(xcb_window_t window) const
 {
-    uint32_t surfaceId = surface->resource()->object.id;
-    if (!m_surfaceWindows.contains(surfaceId)) {
-        return false;
-    }
-    xcb_window_t window = m_surfaceWindows[surfaceId];
     if (!m_windowUnmapped.contains(window)) {
         return false;
     }
