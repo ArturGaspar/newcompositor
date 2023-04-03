@@ -112,6 +112,9 @@ void Compositor::create()
     auto *output = new QWaylandOutput(this, nullptr);
     QScreen *screen = qApp->primaryScreen();
     output->setAvailableGeometry(screen->geometry());
+    output->setManufacturer(screen->manufacturer());
+    output->setModel(screen->model());
+    output->setPhysicalSize(screen->physicalSize().toSize());
     QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
     output->addMode(mode, true);
     output->setCurrentMode(mode);
