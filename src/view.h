@@ -74,6 +74,7 @@ class View : public QWaylandView
     Q_OBJECT
 public:
     View(Compositor *compositor, Xwm *xwm);
+    ~View();
     QOpenGLTexture *getTexture();
     QOpenGLTextureBlitter::Origin textureOrigin() const;
     QPointF position() const { return m_position; }
@@ -88,6 +89,7 @@ private:
     Xwm *m_xwm = nullptr;
     GLenum m_textureTarget = GL_TEXTURE_2D;
     QOpenGLTexture *m_texture = nullptr;
+    QOpenGLTexture *m_shmTexture = nullptr;
     QOpenGLTextureBlitter::Origin m_origin;
     QPointF m_position;
     QWaylandWlShellSurface *m_wlShellSurface = nullptr;

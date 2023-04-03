@@ -5,6 +5,7 @@ SUBDIRS = \
     hacks/hacks.pro
 
 OTHER_FILES += \
+    LICENSE \
     newcompositor.sh.in \
     rpm/newcompositor.spec
 

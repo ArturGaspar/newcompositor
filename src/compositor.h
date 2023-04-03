@@ -92,8 +92,6 @@ signals:
     void frameOffset(const QPoint &offset);
 
 private slots:
-    void onWindowEmpty();
-
     void triggerRender(QWaylandSurface *surface);
     void surfaceHasContentChanged();
     void onSurfaceRedraw();
@@ -127,8 +125,6 @@ private:
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
 
     QPointer<Window> m_showAgainWindow;
-
-    QVector<Window *> m_freeWindows;
 
     Xwayland *m_xwayland;
     Xwm *m_xwm;

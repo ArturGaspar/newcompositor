@@ -74,10 +74,21 @@
 #include "compositor.h"
 #include "view.h"
 
+QVector<Window *> Window::m_windowsToDelete;
+
 Window::Window(Compositor *compositor) :
     m_compositor(compositor)
 {
     onScreenChanged(screen());
+}
+
+void Window::deletePendingWindows()
+{
+    const QVector<Window *> windowsToDelete = m_windowsToDelete;
+    for (Window *window : windowsToDelete) {
+        window->deleteLater();
+    }
+    m_windowsToDelete.clear();
 }
 
 void Window::onScreenChanged(QScreen *screen)
@@ -109,10 +120,12 @@ void Window::viewSurfaceDestroyed()
     View *view = qobject_cast<View *>(sender());
     m_views.removeAll(view);
     if (m_views.empty()) {
-        // XXX: we keep empty windows for reuse because deleting
-        //      them causes crashes.
+        // Keep window alive until next call to
+        // WaylandEglClientBufferIntegrationPrivate::deleteOrphanedTextures()
+        // (by QWaylandBufferRef::toOpenGLTexture() by View::getTexture() by
+        // Window::paintGL())
         hide();
-        emit empty();
+        m_windowsToDelete.append(this);
     }
 }
 
@@ -256,12 +269,14 @@ void Window::showAgain()
     // Make this window appear in the window list again, but if another window
     // has been created since then, bring it to the front after showing this
     // one.
-    hide();
-    show();
-    Window *showAgainWindow = m_compositor->showAgainWindow();
-    if (showAgainWindow && showAgainWindow != this) {
-        showAgainWindow->hide();
-        showAgainWindow->show();
+    if (!m_views.empty()) {
+        hide();
+        show();
+        Window *showAgainWindow = m_compositor->showAgainWindow();
+        if (showAgainWindow && showAgainWindow != this) {
+            showAgainWindow->hide();
+            showAgainWindow->show();
+        }
     }
 }
 
@@ -280,7 +295,7 @@ void Window::showEvent(QShowEvent *e)
 View *Window::viewAt(const QPointF &point)
 {
     const QPointF mappedPoint = mapInputPoint(point);
-    const auto views = m_views;
+    const QVector<View *> views = m_views;
     for (auto i = views.crbegin(), end = views.crend(); i != end; ++i) {
         View *view = *i;
         QWaylandSurface *surface = view->surface();

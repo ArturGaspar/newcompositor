@@ -78,10 +78,9 @@ class Window : public QOpenGLWindow
 public:
     Window(Compositor *compositor);
 
-    void addView(View *view);
+    static void deletePendingWindows();
 
-signals:
-    void empty();
+    void addView(View *view);
 
 protected:
     void initializeGL() override;
@@ -116,6 +115,8 @@ private:
     void sendMouseEvent(QMouseEvent *e, View *view);
 
     QPointF mapInputPoint(const QPointF &point) const;
+
+    static QVector<Window *> m_windowsToDelete;
 
     QOpenGLTextureBlitter m_textureBlitter;
     QOpenGLTexture *m_backgroundTexture;

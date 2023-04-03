@@ -50,6 +50,7 @@
 
 #include "view.h"
 
+#include <QOpenGLTexture>
 #include <QWaylandBufferRef>
 #include <QWaylandOutput>
 #include <QWaylandSurface>
@@ -67,12 +68,35 @@ View::View(Compositor *compositor, Xwm *xwm) :
 {
 }
 
+View::~View()
+{
+    if (m_shmTexture) {
+        delete m_shmTexture;
+    }
+}
+
 QOpenGLTexture *View::getTexture()
 {
     bool newContent = advance();
     QWaylandBufferRef buf = currentBuffer();
     if (newContent) {
         m_texture = buf.toOpenGLTexture();
+        // QWaylandBufferRef::toOpenGLTexture() calls
+        // WaylandEglClientBufferIntegrationPrivate::deleteOrphanedTextures()
+        // so it is now safe to delete windows.
+        Window::deletePendingWindows();
+        // XXX: Textures don't work right when format is not GL_RGBA.
+        if (m_texture && m_texture->format() != QOpenGLTexture::RGBAFormat) {
+            if (buf.isSharedMemory()) {
+                if (!m_shmTexture) {
+                    m_shmTexture = new QOpenGLTexture(QOpenGLTexture::Target2D);
+                }
+                m_shmTexture->destroy();
+                m_shmTexture->setData(buf.image(),
+                                      QOpenGLTexture::DontGenerateMipMaps);
+                m_texture = m_shmTexture;
+            }
+        }
         if (surface()) {
             switch (buf.origin()) {
             case QWaylandSurface::OriginTopLeft:
