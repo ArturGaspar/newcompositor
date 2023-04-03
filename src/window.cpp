@@ -247,6 +247,8 @@ void Window::updateOutputMode()
     QWaylandOutputMode mode(outputSize, refreshRate);
     output->addMode(mode, false);
     output->setCurrentMode(mode);
+
+    requestUpdate();
 }
 
 bool Window::event(QEvent *e)
