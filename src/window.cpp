@@ -376,11 +376,12 @@ void Window::touchEvent(QTouchEvent *e)
         }
         bool touchClient = false;
         // TODO: Look at how wlroots detects touch-able clients instead of
-        //       whitelisting KDE clients.
+        //       whitelisting clients.
         // XXX: It is intentional we don't give touches to popups that don't
         //      have the app id even though their ancestor does. That is weird
         //      also on KDE apps.
-        if (view->appId().startsWith("org.kde.")) {
+        if (view->appId() == "chromium-browser" ||
+                view->appId().startsWith("org.kde.")) {
             touchClient = true;
         }
         if (touchClient) {
