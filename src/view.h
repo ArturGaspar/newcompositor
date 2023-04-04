@@ -68,7 +68,9 @@ class QWaylandXdgPopup;
 class QWaylandXdgToplevel;
 
 class Compositor;
+#ifdef XWAYLAND
 class XwmWindow;
+#endif
 
 class View : public QWaylandView
 {
@@ -98,7 +100,9 @@ private:
     QWaylandWlShellSurface *m_wlShellSurface = nullptr;
     QWaylandXdgToplevel *m_xdgToplevel = nullptr;
     QWaylandXdgPopup *m_xdgPopup = nullptr;
+#ifdef XWAYLAND
     XwmWindow *m_xwmWindow = nullptr;
+#endif
 
 public slots:
     void onOffsetForNextFrame(const QPoint &offset);

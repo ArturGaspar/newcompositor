@@ -28,7 +28,7 @@ handle xdg_shell clients.
 
 %build
 sed -e 's|@@LIB@@|%{_libdir}|g' %{name}.sh.in > %{name}
-%{opt_qmake_qt5}
+%{opt_qmake_qt5} 'CONFIG += xwayland'
 %make_build
 
 %install

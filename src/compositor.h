@@ -69,9 +69,11 @@ class QWaylandXdgToplevel;
 
 class View;
 class Window;
+#ifdef XWAYLAND
 class Xwayland;
 class Xwm;
 class XwmWindow;
+#endif
 
 class Compositor : public QWaylandCompositor
 {
@@ -115,11 +117,13 @@ private slots:
                               QWaylandXdgSurface *xdgSurface);
     void onXdgPopupCreated(QWaylandXdgPopup *popup,
                            QWaylandXdgSurface *xdgSurface);
+#ifdef XWAYLAND
     void onXwmWindowBoundToSurface(XwmWindow *XwmWindow,
                                    QWaylandSurface *previousSurface);
     void onXwmWindowPositionChanged(const QPoint &pos);
     void onXwmWindowSetPopup(QWaylandSurface *parentSurface,
                              const QPoint &pos);
+#endif
 
 private:
     Window *ensureWindowForView(View *view);
@@ -131,8 +135,10 @@ private:
 
     QPointer<Window> m_showAgainWindow;
 
+#ifdef XWAYLAND
     Xwayland *m_xwayland;
     Xwm *m_xwm;
+#endif
 };
 
 QT_END_NAMESPACE

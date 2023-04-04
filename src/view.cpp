@@ -60,7 +60,9 @@
 
 #include "compositor.h"
 #include "window.h"
+#ifdef XWAYLAND
 #include "xwmwindow.h"
+#endif
 
 View::View(Compositor *compositor, QWaylandSurface *surface)
     : m_compositor(compositor)
@@ -131,8 +133,10 @@ void View::onOutputGeometryChanged()
         m_wlShellSurface->sendConfigure(size, QWaylandWlShellSurface::NoneEdge);
     } else if (m_xdgToplevel) {
         m_xdgToplevel->sendMaximized(size);
+#ifdef XWAYLAND
     } else if (m_xwmWindow) {
         m_xwmWindow->resize(size);
+#endif
     }
 }
 
@@ -148,8 +152,10 @@ void View::sendClose()
         m_xdgToplevel->sendClose();
     } else if (m_xdgPopup) {
         m_xdgPopup->sendPopupDone();
+#ifdef XWAYLAND
     } else if (m_xwmWindow) {
         m_xwmWindow->sendClose();
+#endif
     } else if (surface()) {
         m_compositor->destroyClientForSurface(surface());
     }
@@ -161,8 +167,10 @@ QString View::appId() const
         return m_xdgToplevel->appId();
     } else if (m_wlShellSurface) {
         return m_wlShellSurface->className();
+#ifdef XWAYLAND
     } else if (m_xwmWindow) {
         return m_xwmWindow->className();
+#endif
     }
     return QString();
 }
@@ -173,8 +181,10 @@ QString View::title() const
         return m_xdgToplevel->title();
     } else if (m_wlShellSurface) {
         return m_wlShellSurface->title();
+#ifdef XWAYLAND
     } else if (m_xwmWindow) {
         return m_xwmWindow->title();
+#endif
     }
     return QString();
 }
