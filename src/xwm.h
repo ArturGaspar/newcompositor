@@ -29,14 +29,13 @@ public:
     void closeWindow(xcb_window_t window);
     void raiseWindow(xcb_window_t window);
     void resizeWindow(xcb_window_t window, const QSize &size);
-    bool windowIsUnmapped(xcb_window_t window) const;
 
-    QPoint windowPosition(xcb_window_t window) const;
-    QWaylandSurface *parentSurface(QWaylandSurface *surface);
+    QWaylandSurface *findSurface(uint32_t surfaceId) const;
+    QWaylandSurface *surfaceForWindow(xcb_window_t window) const;
 
 signals:
-    void windowPositionChanged(QWaylandSurface *surface, const QPoint &pos);
-    void xwmWindowCreated(XwmWindow *XwmWindow);
+    void windowBoundToSurface(XwmWindow *XwmWindow,
+                              QWaylandSurface *previousSurface);
 
 private slots:
     void initialize();
@@ -46,10 +45,6 @@ private slots:
 
 private:
     xcb_atom_t internAtom(const QByteArray &name);
-    void createXwmWindow(QWaylandSurface *surface, xcb_window_t window);
-    QWaylandSurface *findSurface(xcb_window_t window) const;
-    void setWindowPosition(xcb_window_t window, const QPoint &pos);
-    void setWindowOverrideRedirect(xcb_window_t window, bool overrideRedirect);
 
     void handleCreateNotify(xcb_generic_event_t *event);
     void handleDestroyNotify(xcb_generic_event_t *event);
@@ -61,9 +56,9 @@ private:
     void handlePropertyNotify(xcb_generic_event_t *event);
     void handleClientMessage(xcb_generic_event_t *event);
 
-    xcb_get_property_reply_t *getWindowProperty(xcb_window_t window,
-                                                xcb_atom_t property);
     void readWindowProperty(xcb_window_t window, xcb_atom_t property);
+    void readWindowTitle(xcb_window_t window, xcb_get_property_reply_t *reply);
+    void readWindowClass(xcb_window_t window, xcb_get_property_reply_t *reply);
     void readWindowTransientFor(xcb_window_t window,
                                 xcb_get_property_reply_t *reply);
     void readWindowProtocols(xcb_window_t window,
@@ -74,16 +69,7 @@ private:
     xcb_connection_t *m_conn;
     QSocketNotifier *m_notifier;
 
-    QHash<xcb_window_t, QPoint> m_windowPositions;
-
-    QHash<xcb_window_t, bool> m_windowOverrideRedirects;
-    QHash<xcb_window_t, bool> m_windowUnmapped;
-
-    struct WindowProperty {
-        xcb_window_t transientFor;
-        QVector<xcb_atom_t> protocols;
-    };
-    QHash<xcb_window_t, WindowProperty> m_windowProperties;
+    QHash<xcb_window_t, XwmWindow*> m_windows;
 
     QHash<uint32_t, xcb_window_t> m_surfaceWindows;
 

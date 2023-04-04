@@ -76,8 +76,8 @@
 
 QVector<Window *> Window::m_windowsToDelete;
 
-Window::Window(Compositor *compositor) :
-    m_compositor(compositor)
+Window::Window(Compositor *compositor)
+    : m_compositor(compositor)
 {
     onScreenChanged(screen());
 }
@@ -122,8 +122,7 @@ void Window::viewSurfaceDestroyed()
     if (m_views.empty()) {
         // Keep window alive until next call to
         // WaylandEglClientBufferIntegrationPrivate::deleteOrphanedTextures()
-        // (by QWaylandBufferRef::toOpenGLTexture() by View::getTexture() by
-        // Window::paintGL())
+        // (by QWaylandBufferRef::toOpenGLTexture() by View::getTexture())
         hide();
         m_windowsToDelete.append(this);
     }

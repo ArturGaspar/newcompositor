@@ -115,9 +115,11 @@ private slots:
                               QWaylandXdgSurface *xdgSurface);
     void onXdgPopupCreated(QWaylandXdgPopup *popup,
                            QWaylandXdgSurface *xdgSurface);
-    void onXwmWindowCreated(XwmWindow *XwmWindow);
-    void onXwmWindowPositionChanged(QWaylandSurface *surface,
-                                    const QPoint &pos);
+    void onXwmWindowBoundToSurface(XwmWindow *XwmWindow,
+                                   QWaylandSurface *previousSurface);
+    void onXwmWindowPositionChanged(const QPoint &pos);
+    void onXwmWindowSetPopup(QWaylandSurface *parentSurface,
+                             const QPoint &pos);
 
 private:
     Window *ensureWindowForView(View *view);

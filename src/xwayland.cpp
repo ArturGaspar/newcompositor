@@ -12,9 +12,9 @@
 #include <wayland-server-core.h>
 
 Xwayland::Xwayland(QWaylandCompositor *compositor)
-    : QProcess(compositor),
-      m_compositor(compositor),
-      m_displayName(":")
+    : QProcess(compositor)
+    , m_compositor(compositor)
+    , m_displayName(":")
 {
     setProcessChannelMode(QProcess::ForwardedChannels);
     setProgram("Xwayland");

@@ -62,8 +62,8 @@
 #include "window.h"
 #include "xwmwindow.h"
 
-View::View(Compositor *compositor, QWaylandSurface *surface) :
-    m_compositor(compositor)
+View::View(Compositor *compositor, QWaylandSurface *surface)
+    : m_compositor(compositor)
 {
     setSurface(surface);
     connect(surface, &QWaylandSurface::offsetForNextFrame,
@@ -96,6 +96,8 @@ QOpenGLTexture *View::getTexture()
                     m_shmTexture = new QOpenGLTexture(QOpenGLTexture::Target2D);
                 }
                 m_shmTexture->destroy();
+                // QOpenGLTexture::setData() converts the image to
+                // adequate format.
                 m_shmTexture->setData(buf.image(),
                                       QOpenGLTexture::DontGenerateMipMaps);
                 m_texture = m_shmTexture;

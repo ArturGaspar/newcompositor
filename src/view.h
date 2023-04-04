@@ -93,6 +93,7 @@ private:
     QPointF m_position;
     View *m_parentView = nullptr;
     QPoint m_offset;
+    bool m_hide = false;
 
     QWaylandWlShellSurface *m_wlShellSurface = nullptr;
     QWaylandXdgToplevel *m_xdgToplevel = nullptr;
