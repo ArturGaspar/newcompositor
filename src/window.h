@@ -61,6 +61,7 @@
 
 QT_BEGIN_NAMESPACE
 
+class QCloseEvent;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
@@ -89,6 +90,8 @@ protected:
     void paintGL() override;
 
     bool event(QEvent *e) override;
+
+    void closeEvent(QCloseEvent *e);
 
     void resizeEvent(QResizeEvent *e) override;
     void showEvent(QShowEvent *e) override;

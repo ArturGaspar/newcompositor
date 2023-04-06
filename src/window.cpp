@@ -250,21 +250,6 @@ void Window::updateOutputMode()
     requestUpdate();
 }
 
-bool Window::event(QEvent *e)
-{
-    if (e->type() == QEvent::Close) {
-        if (!m_views.empty()) {
-            View *view = m_views.first();
-            view->sendClose();
-            e->ignore();
-            m_compositor->setShowAgainWindow(this);
-            QTimer::singleShot(100, this, &Window::showAgain);
-            return false;
-        }
-    }
-    return QOpenGLWindow::event(e);
-}
-
 void Window::showAgain()
 {
     // Make this window appear in the window list again, but if another window
@@ -278,6 +263,30 @@ void Window::showAgain()
             showAgainWindow->hide();
             showAgainWindow->show();
         }
+    }
+}
+
+bool Window::event(QEvent *e)
+{
+    switch (e->type()) {
+    case QEvent::Close:
+        closeEvent(reinterpret_cast<QCloseEvent *>(e));
+        break;
+    default:
+        return QOpenGLWindow::event(e);
+    }
+    return true;
+}
+
+void Window::closeEvent(QCloseEvent *e)
+{
+    Q_UNUSED(e);
+    if (!m_views.empty()) {
+        View *view = m_views.first();
+        view->sendClose();
+        e->ignore();
+        m_compositor->setShowAgainWindow(this);
+        QTimer::singleShot(100, this, &Window::showAgain);
     }
 }
 

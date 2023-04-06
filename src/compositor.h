@@ -128,12 +128,11 @@ private:
     Window *ensureWindowForView(View *view);
     Window *createWindow(View *view);
 
+    QPointer<Window> m_showAgainWindow;
+
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
-
-    QPointer<Window> m_showAgainWindow;
-
 #ifdef XWAYLAND
     Xwayland *m_xwayland;
     Xwm *m_xwm;
