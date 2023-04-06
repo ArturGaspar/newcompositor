@@ -326,7 +326,7 @@ void Window::mousePressEvent(QMouseEvent *e)
                               Qt::NoButton, Qt::NoButton, e->modifiers());
         mouseMoveEvent(&moveEvent);
     }
-    m_compositor->defaultSeat()->sendMousePressEvent(e->button());
+    m_compositor->seatFor(e)->sendMousePressEvent(e->button());
     QWaylandSurface *surface = m_mouseView->surface();
     m_compositor->setFocus(surface);
 }
@@ -367,7 +367,8 @@ void Window::keyReleaseEvent(QKeyEvent *e)
 
 void Window::touchEvent(QTouchEvent *e)
 {
-    bool hadTouchClient = false;
+    bool unhandled = false;
+    QWaylandSeat *seat = m_compositor->seatFor(e);
     QSet<QWaylandClient *> clients;
     for (const QTouchEvent::TouchPoint &p : e->touchPoints()) {
         QPointF pos = p.pos();
@@ -375,35 +376,24 @@ void Window::touchEvent(QTouchEvent *e)
         if (!view) {
             continue;
         }
-        bool touchClient = false;
-        // TODO: Look at how wlroots detects touch-able clients instead of
-        //       whitelisting clients.
-        // XXX: It is intentional we don't give touches to popups that don't
-        //      have the app id even though their ancestor does. That is weird
-        //      also on KDE apps.
-        if (view->appId() == "chromium-browser" ||
-                view->appId().startsWith("org.kde.")) {
-            touchClient = true;
-        }
-        if (touchClient) {
-            hadTouchClient = true;
+        QPointF mappedPos = mapInputPoint(pos);
+        mappedPos -= view->position();
+        uint serial = seat->sendTouchPointEvent(view->surface(), p.id(),
+                                                mappedPos, p.state());
+        if (serial == 0 && (p.state() == Qt::TouchPointPressed ||
+                            p.state() == Qt::TouchPointReleased)) {
+            unhandled = true;
+        } else {
             if (p.state() == Qt::TouchPointReleased) {
                 m_compositor->setFocus(view->surface());
             }
-        } else {
-            continue;
         }
-        QPointF mappedPos = mapInputPoint(pos);
-        mappedPos -= view->position();
-        m_compositor->defaultSeat()->sendTouchPointEvent(view->surface(),
-                                                         p.id(), mappedPos,
-                                                         p.state());
         clients.insert(view->surface()->client());
     }
     for (QWaylandClient *client : clients) {
-        m_compositor->defaultSeat()->sendTouchFrameEvent(client);
+        seat->sendTouchFrameEvent(client);
     }
-    if (!hadTouchClient) {
+    if (unhandled) {
         // Make Qt synthesise a mouse event for it.
         e->ignore();
     }
