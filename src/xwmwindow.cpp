@@ -51,9 +51,7 @@ void XwmWindow::maybeSetPopup()
 {
     if (m_overrideRedirect && m_transientFor) {
         QWaylandSurface *surface = m_xwm->surfaceForWindow(m_transientFor);
-        if (surface) {
-            emit setPopup(surface, m_position);
-        }
+        emit setPopup(surface, m_position);
     }
 }
 

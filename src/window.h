@@ -81,6 +81,7 @@ public:
     static void deletePendingWindows();
 
     void addView(View *view);
+    QVector<View *> views() const { return m_views; }
 
 protected:
     void initializeGL() override;

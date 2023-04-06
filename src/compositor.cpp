@@ -417,10 +417,24 @@ void Compositor::onXwmWindowSetPopup(QWaylandSurface *parentSurface,
     auto *xwmWindow = qobject_cast<XwmWindow *>(sender());
     auto *view = qobject_cast<View *>(xwmWindow->surface()->primaryView());
     Q_ASSERT(view);
-    auto *parentView = qobject_cast<View *>(parentSurface->primaryView());
-    Q_ASSERT(parentView);
-    view->m_parentView = parentView;
-    view->m_position = pos;
+    View *parentView;
+    if (parentSurface) {
+        parentView = qobject_cast<View *>(parentSurface->primaryView());
+        Q_ASSERT(parentView);
+    } else {
+        // If parent surface is unknown, make it a popup of the active window.
+        auto *window = qobject_cast<Window *>(QGuiApplication::focusWindow());
+        if (window) {
+            const QVector<View *> views = window->views();
+            if (!views.isEmpty()) {
+                parentView = views.first();
+            }
+        }
+    }
+    if (parentView) {
+        view->m_parentView = parentView;
+        view->m_position = pos;
+    }
 }
 #endif // XWAYLAND
 
