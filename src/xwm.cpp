@@ -365,6 +365,13 @@ void Xwm::raiseWindow(xcb_window_t window)
     ::xcb_flush(m_conn);
 }
 
+void Xwm::setFocusWindow(xcb_window_t window)
+{
+    ::xcb_set_input_focus(m_conn, XCB_INPUT_FOCUS_POINTER_ROOT, window,
+                          XCB_CURRENT_TIME);
+    ::xcb_flush(m_conn);
+}
+
 void Xwm::resizeWindow(xcb_window_t window, const QSize &size)
 {
     uint16_t mask = (XCB_CONFIG_WINDOW_WIDTH |

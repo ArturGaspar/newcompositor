@@ -86,9 +86,8 @@ public:
     Window *showAgainWindow();
     void setShowAgainWindow(Window *window);
 
-    bool surfaceHasContent(QWaylandSurface *surface);
-    bool surfaceIsFocusable(QWaylandSurface *surface);
-    void setFocus(QWaylandSurface *surface);
+    bool surfaceHasContent(QWaylandSurface *surface) const;
+    void setFocusSurface(QWaylandSurface *surface);
 
 signals:
     void frameOffset(const QPoint &offset);

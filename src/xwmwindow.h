@@ -24,6 +24,7 @@ public:
     void resize(const QSize &size);
     void sendClose();
     void raise();
+    void setFocus();
 
     bool isMapped() const { return m_mapped; }
     QString className() const { return m_className; }

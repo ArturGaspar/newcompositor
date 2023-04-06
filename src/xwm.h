@@ -25,10 +25,10 @@ class Xwm : public QObject
 public:
     Xwm(Compositor *compositor, Xwayland *xwayland);
     ~Xwm();
-    void syncWindowProperties(xcb_window_t window);
     void closeWindow(xcb_window_t window);
     void raiseWindow(xcb_window_t window);
     void resizeWindow(xcb_window_t window, const QSize &size);
+    void setFocusWindow(xcb_window_t window);
 
     QWaylandSurface *findSurface(uint32_t surfaceId) const;
     QWaylandSurface *surfaceForWindow(xcb_window_t window) const;
@@ -45,6 +45,8 @@ private slots:
 
 private:
     xcb_atom_t internAtom(const QByteArray &name);
+
+    void syncWindowProperties(xcb_window_t window);
 
     void handleCreateNotify(xcb_generic_event_t *event);
     void handleDestroyNotify(xcb_generic_event_t *event);
@@ -70,7 +72,6 @@ private:
     QSocketNotifier *m_notifier;
 
     QHash<xcb_window_t, XwmWindow*> m_windows;
-
     QHash<uint32_t, xcb_window_t> m_surfaceWindows;
 
     xcb_atom_t m_atom_wlSurfaceId;

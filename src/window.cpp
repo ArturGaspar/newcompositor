@@ -328,7 +328,7 @@ void Window::mousePressEvent(QMouseEvent *e)
     }
     m_compositor->seatFor(e)->sendMousePressEvent(e->button());
     QWaylandSurface *surface = m_mouseView->surface();
-    m_compositor->setFocus(surface);
+    m_compositor->setFocusSurface(surface);
 }
 
 void Window::mouseReleaseEvent(QMouseEvent *e)
@@ -385,7 +385,7 @@ void Window::touchEvent(QTouchEvent *e)
             unhandled = true;
         } else {
             if (p.state() == Qt::TouchPointReleased) {
-                m_compositor->setFocus(view->surface());
+                m_compositor->setFocusSurface(view->surface());
             }
         }
         clients.insert(view->surface()->client());

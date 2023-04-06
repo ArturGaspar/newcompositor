@@ -32,9 +32,9 @@ void XwmWindow::setSurface(QWaylandSurface *surface)
 
 void XwmWindow::onSurfaceDestroyed()
 {
-    /* The window stays alive and may be bound to another surface later,
-     * but current listeners expect a surface, so disconnect them until they
-     * connect themselves back on next Xwm::windowBoundToSurface(). */
+    // The window stays alive and may be bound to another surface later,
+    // but current listeners expect a surface, so disconnect them until they
+    // connect themselves back on next Xwm::windowBoundToSurface().
     disconnect(this, nullptr, nullptr, nullptr);
     m_surface = nullptr;
 }
@@ -86,4 +86,9 @@ void XwmWindow::sendClose()
 void XwmWindow::raise()
 {
     m_xwm->raiseWindow(m_window);
+}
+
+void XwmWindow::setFocus()
+{
+    m_xwm->setFocusWindow(m_window);
 }
