@@ -50,6 +50,9 @@
 
 #include "window.h"
 
+#include <QCoreApplication>
+#include <QInputMethodEvent>
+#include <QInputMethodQueryEvent>
 #include <QMatrix4x4>
 #include <QMouseEvent>
 #include <QOpenGLFunctions>
@@ -68,6 +71,7 @@
 #include <QTransform>
 #include <QWaylandOutput>
 #include <QWaylandOutputMode>
+#include <QWaylandQuickItem>
 #include <QWaylandSeat>
 #include <QWaylandView>
 
@@ -250,27 +254,17 @@ void Window::updateOutputMode()
     requestUpdate();
 }
 
-void Window::showAgain()
-{
-    // Make this window appear in the window list again, but if another window
-    // has been created since then, bring it to the front after showing this
-    // one.
-    if (!m_views.empty()) {
-        hide();
-        show();
-        Window *showAgainWindow = m_compositor->showAgainWindow();
-        if (showAgainWindow && showAgainWindow != this) {
-            showAgainWindow->hide();
-            showAgainWindow->show();
-        }
-    }
-}
-
 bool Window::event(QEvent *e)
 {
     switch (e->type()) {
     case QEvent::Close:
         closeEvent(reinterpret_cast<QCloseEvent *>(e));
+        break;
+    case QEvent::InputMethodQuery:
+        inputMethodQueryEvent(reinterpret_cast<QInputMethodQueryEvent *>(e));
+        break;
+    case QEvent::InputMethod:
+        inputMethodEvent(reinterpret_cast<QInputMethodEvent *>(e));
         break;
     default:
         return QOpenGLWindow::event(e);
@@ -288,6 +282,51 @@ void Window::closeEvent(QCloseEvent *e)
         m_compositor->setShowAgainWindow(this);
         QTimer::singleShot(100, this, &Window::showAgain);
     }
+}
+
+void Window::showAgain()
+{
+    // Make this window appear in the window list again, but if another window
+    // has been created since then, bring it to the front after showing this
+    // one.
+    if (!m_views.empty()) {
+        hide();
+        show();
+        Window *showAgainWindow = m_compositor->showAgainWindow();
+        if (showAgainWindow && showAgainWindow != this) {
+            showAgainWindow->hide();
+            showAgainWindow->show();
+        }
+    }
+}
+
+void Window::inputMethodQueryEvent(QInputMethodQueryEvent *e)
+{
+    // Horrible hack to use QWaylandInputMethodControl, that is not
+    // exposed directly.
+    QWaylandQuickItem quickItem;
+    quickItem.setSurface(m_compositor->defaultSeat()->keyboardFocus());
+    quickItem.takeFocus();
+    QMetaEnum queries = QMetaEnum::fromType<Qt::InputMethodQuery>();
+    for (int i = 0; i < queries.keyCount(); i++) {
+        auto query = static_cast<Qt::InputMethodQuery>(queries.value(i));
+        if (query == Qt::ImEnabled) {
+            e->setValue(query, true);
+        } else if (e->queries().testFlag(query)) {
+            e->setValue(query, quickItem.inputMethodQuery(query));
+        }
+    }
+    e->accept();
+}
+
+void Window::inputMethodEvent(QInputMethodEvent *e)
+{
+    // Horrible hack to use QWaylandInputMethodControl, that is not
+    // exposed directly.
+    QWaylandQuickItem quickItem;
+    quickItem.setSurface(m_compositor->defaultSeat()->keyboardFocus());
+    quickItem.takeFocus();
+    QCoreApplication::sendEvent(&quickItem, e);
 }
 
 void Window::resizeEvent(QResizeEvent *e)
