@@ -79,6 +79,11 @@ QVector<Window *> Window::m_windowsToDelete;
 Window::Window(Compositor *compositor)
     : m_compositor(compositor)
 {
+    resize(0, 0);
+    connect(m_compositor, &Compositor::keyboardRect,
+            this, &Window::onKeyboardRect);
+    connect(this, &QWindow::visibleChanged,
+            this, &Window::updateOutputMode);
     onScreenChanged(screen());
 }
 
@@ -117,7 +122,7 @@ void Window::addView(View *view)
 
 void Window::viewSurfaceDestroyed()
 {
-    View *view = qobject_cast<View *>(sender());
+    auto *view = qobject_cast<View *>(sender());
     m_views.removeAll(view);
     if (m_views.empty()) {
         // Keep window alive until next call to
@@ -208,13 +213,13 @@ void Window::onScreenOrientationChanged(Qt::ScreenOrientation orientation)
 
 void Window::updateOutputMode()
 {
-    QWaylandOutput *output = m_compositor->outputFor(this);
-    if (!output) {
+    QSize outputSize = size();
+    if (outputSize.isEmpty()) {
         return;
     }
 
-    QSize outputSize = size();
-    if (outputSize.isEmpty()) {
+    QWaylandOutput *output = m_compositor->outputFor(this);
+    if (!output) {
         return;
     }
 
@@ -239,9 +244,13 @@ void Window::updateOutputMode()
         m_transform = QTransform();
     }
 
+    emit rotationChanged(m_rotation);
+
     bool invertible;
     m_inverseTransform = m_transform.inverted(&invertible);
     Q_ASSERT(invertible);
+
+    outputSize.setHeight(outputSize.height() - m_keyboardHeight);
 
     QWaylandOutputMode mode(outputSize, refreshRate);
     bool modeAdded = false;
@@ -257,6 +266,22 @@ void Window::updateOutputMode()
     output->setCurrentMode(mode);
 
     requestUpdate();
+}
+
+void Window::onKeyboardRect(bool active, int x, int y, int width, int height)
+{
+    Q_UNUSED(x);
+    Q_UNUSED(y);
+    if (!active) {
+        m_keyboardHeight = 0;
+    } else {
+        if (m_rotation % 180 == 0) {
+            m_keyboardHeight = height;
+        } else {
+            m_keyboardHeight = width;
+        }
+    }
+    updateOutputMode();
 }
 
 void Window::showAgain()

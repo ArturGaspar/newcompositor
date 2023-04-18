@@ -2,11 +2,16 @@
 
 set -eu
 
-export FLATPAK_MALIIT_CONTAINER_DBUS=unix:path=/dev/null
-export QT_QUICK_CONTROLS_MOBILE=1
-export QT_WAYLAND_FORCE_DPI=458
+# If unset or set to 96 override to 458, otherwise keep the user's setting.
+if [ "${QT_WAYLAND_FORCE_DPI:-96}" = 96 ]; then
+    QT_WAYLAND_FORCE_DPI=458
+fi
+
+export FLATPAK_MALIIT_CONTAINER_DBUS="unix:path=${XDG_RUNTIME_DIR}/newcompositor/qt-runner"
+export QT_QUICK_CONTROLS_MOBILE="${QT_QUICK_CONTROLS_MOBILE:-1}"
+export QT_WAYLAND_FORCE_DPI
 # Keyboard does not show up if shell integration is not wl-shell.
-export QT_WAYLAND_SHELL_INTEGRATION=wl-shell
-export WAYLAND_DISPLAY=newcompositor/wayland-0
+export QT_WAYLAND_SHELL_INTEGRATION="${QT_WAYLAND_SHELL_INTEGRATION:-wl-shell}"
+export WAYLAND_DISPLAY=newcompositor/wayland
 
 exec "$@"

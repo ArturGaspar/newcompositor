@@ -4,7 +4,8 @@ After=lipstick.service
 
 [Service]
 ExecStartPre=/bin/mkdir -p "${XDG_RUNTIME_DIR}/newcompositor"
-ExecStart=/usr/bin/newcompositor --wayland-socket-name newcompositor/wayland-0
+ExecStart=/usr/bin/newcompositor --wayland-socket-name newcompositor/wayland \
+                                 --qt-runner-address "unix:path=${XDG_RUNTIME_DIR}/newcompositor/qt-runner"
 Restart=on-failure
 
 [Install]

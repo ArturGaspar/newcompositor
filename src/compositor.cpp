@@ -66,6 +66,7 @@
 #include <QWaylandXdgDecorationManagerV1>
 #include <QWindow>
 
+#include "dbuscontainerstate.h"
 #include "view.h"
 #include "window.h"
 #ifdef XWAYLAND
@@ -75,7 +76,8 @@
 #endif
 
 Compositor::Compositor()
-    : m_wlShell(new QWaylandWlShell(this))
+    : m_dbusContainerState(new DBusContainerState(this))
+    , m_wlShell(new QWaylandWlShell(this))
     , m_xdgShell(new QWaylandXdgShell(this))
     , m_xdgDecorationManager(new QWaylandXdgDecorationManagerV1)
 #ifdef XWAYLAND
@@ -115,16 +117,14 @@ void Compositor::create()
 
     // Some clients, e.g. Xwayland in rootful mode, expect to know output
     // size before they create any surfaces.
-    auto *output = new QWaylandOutput(this, nullptr);
-    QScreen *screen = qApp->primaryScreen();
-    output->setAvailableGeometry(screen->geometry());
-    output->setManufacturer(screen->manufacturer());
-    output->setModel(screen->model());
-    output->setPhysicalSize(screen->physicalSize().toSize());
-    QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
-    output->addMode(mode, true);
-    output->setCurrentMode(mode);
-    setDefaultOutput(output);
+//    auto *output = new QWaylandOutput(this, nullptr);
+//    QScreen *screen = qApp->primaryScreen();
+//    output->setManufacturer(screen->manufacturer());
+//    output->setModel(screen->model());
+//    output->setPhysicalSize(screen->physicalSize().toSize());
+//    QWaylandOutputMode mode(screen->size(), screen->refreshRate() * 1000);
+//    output->addMode(mode, true);
+//    output->setCurrentMode(mode);
 
     QWaylandCompositor::create();
 
@@ -238,6 +238,9 @@ void Compositor::setFocusSurface(QWaylandSurface *surface)
 Window *Compositor::createWindow(View *view)
 {
     auto *window = new Window(this);
+    connect(window, &Window::rotationChanged,
+            m_dbusContainerState, &DBusContainerState::onWindowRotationChanged);
+
     auto *output = new QWaylandOutput(this, window);
     output->setParent(window);
 

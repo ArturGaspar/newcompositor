@@ -84,6 +84,9 @@ public:
     void addView(View *view);
     QVector<View *> views() const { return m_views; }
 
+signals:
+    void rotationChanged(int rotation);
+
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
@@ -107,6 +110,7 @@ protected:
 
 private slots:
     void viewSurfaceDestroyed();
+    void onKeyboardRect(bool active, int x, int y, int width, int height);
     void onScreenChanged(QScreen *screen);
     void onScreenOrientationChanged(Qt::ScreenOrientation orientation);
 
@@ -132,6 +136,7 @@ private:
     int m_rotation = 0;
     QTransform m_transform;
     QTransform m_inverseTransform;
+    int m_keyboardHeight;
 };
 
 QT_END_NAMESPACE

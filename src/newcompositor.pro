@@ -1,12 +1,14 @@
-QT += gui waylandcompositor
+QT += dbus gui waylandcompositor
 
 HEADERS += \
     compositor.h \
+    dbuscontainerstate.h \
     view.h \
     window.h
 
 SOURCES += main.cpp \
     compositor.cpp \
+    dbuscontainerstate.cpp \
     view.cpp \
     window.cpp
 

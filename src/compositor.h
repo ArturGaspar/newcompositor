@@ -67,6 +67,7 @@ class QWaylandXdgShell;
 class QWaylandXdgSurface;
 class QWaylandXdgToplevel;
 
+class DBusContainerState;
 class View;
 class Window;
 #ifdef XWAYLAND
@@ -92,6 +93,7 @@ public:
 signals:
     void frameOffset(const QPoint &offset);
     void surfaceReady(QWaylandSurface *surface);
+    void keyboardRect(bool active, int x, int y, int width, int height);
 
 private slots:
     void triggerRender(QWaylandSurface *surface);
@@ -129,7 +131,7 @@ private:
     Window *createWindow(View *view);
 
     QPointer<Window> m_showAgainWindow;
-
+    DBusContainerState *m_dbusContainerState;
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
