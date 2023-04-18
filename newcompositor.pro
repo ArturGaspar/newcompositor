@@ -9,6 +9,13 @@ OTHER_FILES += \
     newcompositor.sh.in \
     rpm/newcompositor.spec
 
+DISTFILES += \
+    service/newcompositor.service
+
 runner.path = /usr/bin
 runner.files = newcompositor
 INSTALLS += runner
+
+service.path = /usr/lib/systemd/user
+service.files = service/newcompositor.service
+INSTALLS += service

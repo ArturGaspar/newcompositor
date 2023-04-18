@@ -38,8 +38,21 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{_libdir}
 mv %{buildroot}/usr/lib/%{name} %{buildroot}/%{_libdir}/%{name}
 %endif
+%if "%{_userunitdir}" != "/usr/lib/systemd/user"
+mv %{buildroot}/usr/lib/systemd/user/%{name}.service %{buildroot}/%{_userunitdir}/%{name}.service
+%endif
+
+%post
+%systemd_user_post %{name}.service
+
+%preun
+%systemd_user_preun %{name}.service
+
+%postun
+%systemd_user_postun %{name}.service
 
 %files
 %{_bindir}/%{name}
 %{_bindir}/%{name}.bin
 %{_libdir}/%{name}/libnewcompositorhacks.so
+%{_userunitdir}/%{name}.service

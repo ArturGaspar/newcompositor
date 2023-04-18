@@ -1,0 +1,11 @@
+[Unit]
+Description=newcompositor
+After=lipstick.service
+
+[Service]
+ExecStartPre=/bin/mkdir -p "${XDG_RUNTIME_DIR}/newcompositor"
+ExecStart=/usr/bin/newcompositor --wayland-socket-name newcompositor/wayland-0
+Restart=on-failure
+
+[Install]
+WantedBy=user-session.target
