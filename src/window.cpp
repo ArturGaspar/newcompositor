@@ -244,7 +244,16 @@ void Window::updateOutputMode()
     Q_ASSERT(invertible);
 
     QWaylandOutputMode mode(outputSize, refreshRate);
-    output->addMode(mode, false);
+    bool modeAdded = false;
+    for (QWaylandOutputMode addedMode : output->modes()) {
+        if (addedMode == mode) {
+            modeAdded = true;
+            break;
+        }
+    }
+    if (!modeAdded) {
+        output->addMode(mode, false);
+    }
     output->setCurrentMode(mode);
 
     requestUpdate();
