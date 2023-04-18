@@ -58,7 +58,6 @@
 #include <QWaylandOutput>
 #include <QWaylandSeat>
 #include <QWaylandSurface>
-#include <QWaylandTextInputManager>
 #include <QWaylandWlShell>
 #include <QWaylandWlShellSurface>
 #include <QWaylandXdgPopup>
@@ -79,7 +78,6 @@ Compositor::Compositor()
     : m_wlShell(new QWaylandWlShell(this))
     , m_xdgShell(new QWaylandXdgShell(this))
     , m_xdgDecorationManager(new QWaylandXdgDecorationManagerV1)
-    , m_textInputManager(new QWaylandTextInputManager(this))
 #ifdef XWAYLAND
     , m_xwayland(new Xwayland(this))
     , m_xwm(new Xwm(this, m_xwayland))
@@ -114,8 +112,6 @@ void Compositor::create()
 
     m_xdgDecorationManager->initialize();
     m_xdgDecorationManager->setPreferredMode(QWaylandXdgToplevel::ServerSideDecoration);
-
-    m_textInputManager->initialize();
 
     // Some clients, e.g. Xwayland in rootful mode, expect to know output
     // size before they create any surfaces.

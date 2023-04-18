@@ -63,8 +63,6 @@ QT_BEGIN_NAMESPACE
 
 class QCloseEvent;
 class QEvent;
-class QInputMethodEvent;
-class QInputMethodQueryEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QResizeEvent;
@@ -94,9 +92,6 @@ protected:
     bool event(QEvent *e) override;
 
     void closeEvent(QCloseEvent *e);
-
-    void inputMethodQueryEvent(QInputMethodQueryEvent *e);
-    void inputMethodEvent(QInputMethodEvent *e);
 
     void resizeEvent(QResizeEvent *e) override;
     void showEvent(QShowEvent *e) override;

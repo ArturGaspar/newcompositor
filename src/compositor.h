@@ -59,7 +59,6 @@ QT_BEGIN_NAMESPACE
 
 class QWaylandOutput;
 class QWaylandSurface;
-class QWaylandTextInputManager;
 class QWaylandWlShell;
 class QWaylandWlShellSurface;
 class QWaylandXdgDecorationManagerV1;
@@ -134,7 +133,6 @@ private:
     QWaylandWlShell *m_wlShell;
     QWaylandXdgShell *m_xdgShell;
     QWaylandXdgDecorationManagerV1 *m_xdgDecorationManager;
-    QWaylandTextInputManager *m_textInputManager;
 #ifdef XWAYLAND
     Xwayland *m_xwayland;
     Xwm *m_xwm;
