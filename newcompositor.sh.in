@@ -2,8 +2,6 @@
 
 set -eu
 
-export FLATPAK_MALIIT_CONTAINER_DBUS="${DBUS_SESSION_BUS_ADDRESS}"
-
 export _LD_PRELOAD="${LD_PRELOAD:-}"
 export LD_PRELOAD="@@LIB@@/newcompositor/libnewcompositorhacks.so ${LD_PRELOAD:-}"
 exec newcompositor.bin "$@"
