@@ -23,17 +23,30 @@ BuildRequires:  pkgconfig(wayland-server)
 Nesting Wayland compositor for Sailfish OS that attempts to transparently
 handle xdg_shell clients.
 
+%package qt-runner-compat
+Summary:    Compatibility wrapper to use newcompositor instead of qt-runner
+Conflicts:  qt-runner
+Provides:   qt-runner
+Requires:   %{name} = %{version}
+
+%description qt-runner-compat
+%{summary}.
+
 %prep
 %autosetup -n %{name}-%{version}
 
 %build
 sed -e 's|@@LIB@@|%{_libdir}|g' %{name}.sh.in > %{name}
-%{opt_qmake_qt5} 'CONFIG += xwayland'
+%{opt_qmake_qt5} CONFIG+=qt-runner-compat CONFIG+=xwayland
 %make_build
 
 %install
 rm -rf %{buildroot}
 %qmake5_install
+%if "%{_bindir}" != "/usr/bin"
+mkdir -p %{buildroot}/%{_bindir}
+mv %{buildroot}/usr/bin/* %{buildroot}/%{_bindir}
+%endif
 %if "%{_libdir}" != "/usr/lib"
 mkdir -p %{buildroot}/%{_libdir}
 mv %{buildroot}/usr/lib/%{name} %{buildroot}/%{_libdir}/%{name}
@@ -56,3 +69,6 @@ mv %{buildroot}/usr/lib/systemd/user/%{name}.service %{buildroot}/%{_userunitdir
 %{_bindir}/%{name}.bin
 %{_libdir}/%{name}/libnewcompositorhacks.so
 %{_userunitdir}/%{name}.service
+
+%files qt-runner-compat
+%{_bindir}/qt-runner

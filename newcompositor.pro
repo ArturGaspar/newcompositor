@@ -10,6 +10,7 @@ OTHER_FILES += \
     rpm/newcompositor.spec
 
 DISTFILES += \
+    qt-runner \
     service/newcompositor.service
 
 runner.path = /usr/bin
@@ -19,3 +20,9 @@ INSTALLS += runner
 service.path = /usr/lib/systemd/user
 service.files = service/newcompositor.service
 INSTALLS += service
+
+qt-runner-compat {
+    qt-runner.path = /usr/bin
+    qt-runner.files = qt-runner
+    INSTALLS += qt-runner
+}

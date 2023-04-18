@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -eu
+
+export FLATPAK_MALIIT_CONTAINER_DBUS=unix:path=/dev/null
+export QT_QUICK_CONTROLS_MOBILE=1
+export QT_WAYLAND_FORCE_DPI=458
+# Keyboard does not show up if shell integration is not wl-shell.
+export QT_WAYLAND_SHELL_INTEGRATION=wl-shell
+export WAYLAND_DISPLAY=newcompositor/wayland-0
+
+exec "$@"
