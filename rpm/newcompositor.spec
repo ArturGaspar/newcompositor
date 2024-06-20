@@ -10,6 +10,7 @@ Requires:   opt-qt5-qtbase-gui >= 5.15.8
 Requires:   opt-qt5-qtdeclarative >= 5.15.8
 Requires:   opt-qt5-qtquickcontrols2 >= 5.15.8
 Requires:   opt-qt5-qtwayland >= 5.15.8
+BuildRequires:  opt-qt5-rpm-macros
 BuildRequires:  opt-qt5-qtbase-devel >= 5.15.8
 BuildRequires:  opt-qt5-qtdeclarative-devel >= 5.15.8
 BuildRequires:  opt-qt5-qtquickcontrols2-devel >= 5.15.8
@@ -43,7 +44,7 @@ sed -e 's|@@LIB@@|%{_libdir}|g' %{name}.sh.in > %{name}
 
 %install
 rm -rf %{buildroot}
-%qmake5_install
+%make_install
 %if "%{_bindir}" != "/usr/bin"
 mkdir -p %{buildroot}/%{_bindir}
 mv %{buildroot}/usr/bin/* %{buildroot}/%{_bindir}
