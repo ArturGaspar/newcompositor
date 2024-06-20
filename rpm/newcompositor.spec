@@ -19,6 +19,7 @@ BuildRequires:  pkgconfig(xcb)
 BuildRequires:  pkgconfig(xcb-composite)
 BuildRequires:  pkgconfig(xkbcommon)
 BuildRequires:  pkgconfig(wayland-server)
+BuildRequires:  systemd
 %{?opt_qt5_default_filter}
 
 %description
