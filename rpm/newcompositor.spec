@@ -4,6 +4,7 @@ Version:    0.0.5
 Release:    1
 License:    BSD
 URL:        https://github.com/ArturGaspar/newcompositor
+Source0:    %{name}-%{version}.tar.bz2
 Requires:   opt-qt5-qtbase >= 5.15.8
 Requires:   opt-qt5-qtbase-gui >= 5.15.8
 Requires:   opt-qt5-qtdeclarative >= 5.15.8
